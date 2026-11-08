@@ -489,3 +489,4 @@ dist/
 appsettings.Development.json
 .env
 .env.local
+*.db
