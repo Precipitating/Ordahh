@@ -1,7 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useCartStore } from './stores/cart'
 
-const API_URL = 'http://localhost:5276' // change to YOUR API port
+const API_URL = 'http://localhost:5276' // keep your working backend port
+const cart = useCartStore()
+
 const menu = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -21,30 +24,61 @@ onMounted(async () => {
 </script>
 
 <template>
-    <main>
-        <h1>Menu</h1>
+    <div class="layout">
+        <main>
+            <h1>Menu</h1>
 
-        <p v-if="loading">Loading...</p>
-        <p v-else-if="error">{{ error }}</p>
+            <p v-if="loading">Loading...</p>
+            <p v-else-if="error">{{ error }}</p>
 
-        <section v-for="category in menu" :key="category.id">
-            <h2>{{ category.name }}</h2>
-            <ul>
-                <li v-for="item in category.items" :key="item.id">
-                    <strong>{{ item.name }}</strong>
-                    <span class="price">${{ item.price.toFixed(2) }}</span>
-                    <p v-if="item.description">{{ item.description }}</p>
+            <section v-for="category in menu" :key="category.id">
+                <h2>{{ category.name }}</h2>
+                <ul>
+                    <li v-for="item in category.items" :key="item.id">
+                        <div class="info">
+                            <strong>{{ item.name }}</strong>
+                            <p v-if="item.description">{{ item.description }}</p>
+                        </div>
+                        <span class="price">${{ item.price.toFixed(2) }}</span>
+                        <button :disabled="!item.isAvailable" @click="cart.add(item)">
+                            {{ item.isAvailable ? 'Add' : 'Sold out' }}
+                        </button>
+                    </li>
+                </ul>
+            </section>
+        </main>
+
+        <aside>
+            <h2>Your order ({{ cart.totalItems }})</h2>
+
+            <p v-if="cart.items.length === 0">Your cart is empty.</p>
+
+            <ul v-else>
+                <li v-for="line in cart.items" :key="line.id" class="cart-line">
+                    <span>{{ line.name }}</span>
+                    <div class="qty">
+                        <button @click="cart.setQuantity(line.id, line.quantity - 1)">-</button>
+                        <span>{{ line.quantity }}</span>
+                        <button @click="cart.setQuantity(line.id, line.quantity + 1)">+</button>
+                    </div>
+                    <span class="price">${{ (line.price * line.quantity).toFixed(2) }}</span>
                 </li>
             </ul>
-        </section>
-    </main>
+
+            <p class="total">Total: <strong>${{ cart.total.toFixed(2) }}</strong></p>
+            <button v-if="cart.items.length" @click="cart.clear()">Clear cart</button>
+        </aside>
+    </div>
 </template>
 
 <style scoped>
-    main {
-        max-width: 600px;
+    .layout {
+        max-width: 900px;
         margin: 0 auto;
         padding: 1rem;
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 2rem;
     }
 
     ul {
@@ -55,14 +89,47 @@ onMounted(async () => {
     li {
         padding: 0.75rem 0;
         border-bottom: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
     }
 
-    .price {
-        float: right;
+    .info {
+        flex: 1;
     }
 
-    p {
-        margin: 0.25rem 0 0;
-        color: #666;
+        .info p {
+            margin: 0.25rem 0 0;
+            color: #666;
+        }
+
+    .cart-line span:first-child {
+        flex: 1;
+    }
+
+    .qty {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .total {
+        font-size: 1.1rem;
+        margin-top: 1rem;
+    }
+
+    button {
+        cursor: pointer;
+    }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+    @media (max-width: 700px) {
+        .layout {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
