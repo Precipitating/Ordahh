@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useCartStore } from './stores/cart'
+import MenuItem from './components/MenuItem.vue'
 
 const API_URL = 'http://localhost:5276' // keep your working backend port
 const cart = useCartStore()
@@ -35,14 +36,7 @@ onMounted(async () => {
                 <h2>{{ category.name }}</h2>
                 <ul>
                     <li v-for="item in category.items" :key="item.id">
-                        <div class="info">
-                            <strong>{{ item.name }}</strong>
-                            <p v-if="item.description">{{ item.description }}</p>
-                        </div>
-                        <span class="price">${{ item.price.toFixed(2) }}</span>
-                        <button :disabled="!item.isAvailable" @click="cart.add(item)">
-                            {{ item.isAvailable ? 'Add' : 'Sold out' }}
-                        </button>
+                        <MenuItem :item="item" @add="cart.add" />
                     </li>
                 </ul>
             </section>
@@ -89,23 +83,17 @@ onMounted(async () => {
     li {
         padding: 0.75rem 0;
         border-bottom: 1px solid #ddd;
+    }
+
+    .cart-line {
         display: flex;
         align-items: center;
         gap: 0.75rem;
     }
 
-    .info {
-        flex: 1;
-    }
-
-        .info p {
-            margin: 0.25rem 0 0;
-            color: #666;
+        .cart-line span:first-child {
+            flex: 1;
         }
-
-    .cart-line span:first-child {
-        flex: 1;
-    }
 
     .qty {
         display: flex;
@@ -121,11 +109,6 @@ onMounted(async () => {
     button {
         cursor: pointer;
     }
-
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
 
     @media (max-width: 700px) {
         .layout {
