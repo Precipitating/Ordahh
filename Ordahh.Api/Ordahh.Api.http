@@ -1,6 +1,5 @@
-@Ordahh.Api_HostAddress = http://localhost:5276
 
-GET {{Ordahh.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+POST http://localhost:5276/api/orders
+Content-Type: application/json
 
-###
+{ "items": [ { "menuItemId": 1, "quantity": 55 }, { "menuItemId": 1, "quantity": 3 } ] }
