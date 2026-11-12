@@ -56,7 +56,7 @@ async function placeOrder()
             {
                 // validation failures from [ApiController] arrive as JSON
                 const problem = await response.json()
-                orderError.value = problem.title ?? 'The order was rejected.'
+                orderError.value = Object.values(problem.errors).flat().join(' ') || problem.title
             } else
             {
                 // your own BadRequest("...") messages arrive as plain text
@@ -122,7 +122,7 @@ async function placeOrder()
 
             <p v-if="orderError" class="error">{{ orderError }}</p>
 
-            <p v-if="confirmation">
+            <p v-if="confirmation" class="success">
                 Order #{{ confirmation.id }} placed. Total:
                 <strong>${{ confirmation.total.toFixed(2) }}</strong>
             </p>
@@ -176,6 +176,9 @@ async function placeOrder()
     }
     .error {
         color: #b00020;
+    }
+    .success {
+        color: #008000;
     }
 
     @media (max-width: 700px) {
