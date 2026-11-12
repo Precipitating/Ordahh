@@ -27,12 +27,15 @@ onMounted(async () => {
 })
 
 
-
+// Adjusting format for the POST request 
 const reshapeList = (list) =>
 {
     console.log({ items: list.map(item => ({ menuItemId: item.id, quantity: item.quantity })) })
     return{ items: list.map(item => ({menuItemId: item.id, quantity: item.quantity})) }
 } 
+
+
+
 
 async function placeOrder()
 {
@@ -108,7 +111,7 @@ async function placeOrder()
                     <div class="qty">
                         <button @click="cart.setQuantity(line.id, line.quantity - 1)">-</button>
                         <span>{{ line.quantity }}</span>
-                        <button @click="cart.setQuantity(line.id, line.quantity + 1)">+</button>
+                        <button :disabled="line.quantity >= cart.MAX_PER_ITEM" @click="cart.setQuantity(line.id, line.quantity + 1)">+</button>
                     </div>
                     <span class="price">${{ (line.price * line.quantity).toFixed(2) }}</span>
                 </li>

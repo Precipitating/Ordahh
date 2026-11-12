@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+const MAX_PER_ITEM = 10
+
 export const useCartStore = defineStore('cart', () => {
     const items = ref([])
 
@@ -15,6 +17,7 @@ export const useCartStore = defineStore('cart', () => {
     function add(menuItem) {
         const existing = items.value.find(i => i.id === menuItem.id)
         if (existing) {
+            if (existing.quantity >= MAX_PER_ITEM) { return }
             existing.quantity++
         } else {
             items.value.push({
@@ -31,6 +34,10 @@ export const useCartStore = defineStore('cart', () => {
             items.value = items.value.filter(i => i.id !== id)
             return
         }
+
+        if (quantity > MAX_PER_ITEM) {
+            return
+        }
         const item = items.value.find(i => i.id === id)
         if (item) item.quantity = quantity
     }
@@ -39,5 +46,5 @@ export const useCartStore = defineStore('cart', () => {
         items.value = []
     }
 
-    return { items, totalItems, total, add, setQuantity, clear }
+    return { items, totalItems, total, add, setQuantity, clear, MAX_PER_ITEM }
 })
