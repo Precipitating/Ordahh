@@ -9,6 +9,9 @@ const cart = useCartStore()
 const menu = ref([])
 const loading = ref(true)
 const error = ref('')
+const submitting = ref(false)
+const orderError = ref('')
+const confirmation = ref(null)
 
 onMounted(async () => {
       try {
@@ -22,6 +25,58 @@ onMounted(async () => {
         loading.value = false
       }
 })
+
+
+
+const reshapeList = (list) =>
+{
+    console.log({ items: list.map(item => ({ menuItemId: item.id, quantity: item.quantity })) })
+    return{ items: list.map(item => ({menuItemId: item.id, quantity: item.quantity})) }
+} 
+
+async function placeOrder()
+{
+    if (submitting.value || cart.items.length === 0) return
+
+    submitting.value = true
+    orderError.value = ''
+    confirmation.value = null
+
+    try {
+        const response = await fetch(`${API_URL}/api/orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reshapeList(cart.items)),
+        })
+
+        if (!response.ok)
+        {
+            const contentType = response.headers.get('content-type') ?? ''
+            if (contentType.includes('json'))
+            {
+                // validation failures from [ApiController] arrive as JSON
+                const problem = await response.json()
+                orderError.value = problem.title ?? 'The order was rejected.'
+            } else
+            {
+                // your own BadRequest("...") messages arrive as plain text
+                orderError.value = await response.text()
+            }
+            return
+        }
+
+        confirmation.value = await response.json()
+        cart.clear()
+    } catch (e) {
+        orderError.value = 'Could not reach the server.'
+        console.error(e)
+    } finally {
+        submitting.value = false
+    }
+
+}
+
+
 </script>
 
 <template>
@@ -61,6 +116,16 @@ onMounted(async () => {
 
             <p class="total">Total: <strong>${{ cart.total.toFixed(2) }}</strong></p>
             <button v-if="cart.items.length" @click="cart.clear()">Clear cart</button>
+            <button v-if="cart.items.length" :disabled="submitting" @click="placeOrder">
+                {{ submitting ? 'Placing order...' : 'Place order' }}
+            </button>
+
+            <p v-if="orderError" class="error">{{ orderError }}</p>
+
+            <p v-if="confirmation">
+                Order #{{ confirmation.id }} placed. Total:
+                <strong>${{ confirmation.total.toFixed(2) }}</strong>
+            </p>
         </aside>
     </div>
 </template>
@@ -108,6 +173,9 @@ onMounted(async () => {
 
     button {
         cursor: pointer;
+    }
+    .error {
+        color: #b00020;
     }
 
     @media (max-width: 700px) {
