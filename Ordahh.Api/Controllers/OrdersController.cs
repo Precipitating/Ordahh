@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Dtos;
 using Ordahh.Api.Models;
-using SQLitePCL;
 
 namespace Ordahh.Api.Controllers;
 
@@ -17,6 +16,56 @@ public class OrdersController : ControllerBase
     {
         _db = db;
     }
+
+    private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedMoves = new()
+    {
+        [OrderStatus.Received] = new[] { OrderStatus.Preparing, OrderStatus.Cancelled },
+        [OrderStatus.Preparing] = new[] { OrderStatus.Completed },
+        [OrderStatus.Completed] = Array.Empty<OrderStatus>(),
+        [OrderStatus.Cancelled] = Array.Empty<OrderStatus>(),
+    };
+
+
+    private static OrderResponse ToResponse(Order o) => new OrderResponse
+    {
+        Id = o.Id,
+        CreatedAt = DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc),
+        Status = o.Status,
+        Total = o.Total,
+        Items = o.Items.Select(oi => new OrderItemResponse
+        {
+            Name = oi.MenuItem?.Name ?? "Unknown",
+            MenuItemId = oi.MenuItemId,
+            Quantity = oi.Quantity,
+            UnitPrice = oi.UnitPrice
+        }).ToList()
+    };
+
+
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, UpdateOrderStatusRequest request)
+    {
+        if (!Enum.IsDefined(request.Status))
+            return BadRequest("Unknown status.");
+
+        var order = await _db.Orders
+            .Include(o => o.Items)
+            .ThenInclude(oi => oi.MenuItem)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
+        if (order == null)
+            return NotFound();
+
+        if (!AllowedMoves[order.Status].Contains(request.Status))
+            return Conflict($"Cannot move an order from {order.Status} to {request.Status}.");
+
+        order.Status = request.Status;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToResponse(order));
+    }
+
+
 
     [HttpPost]
     public async Task<IActionResult> CreateOrder(CreateOrderRequest request)
@@ -99,21 +148,7 @@ public class OrdersController : ControllerBase
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
 
-        var mapping = orders.Select(o => new OrderResponse
-        {
-            Id = o.Id,
-            CreatedAt = DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc),
-            Status = o.Status,
-            Total = o.Total,
-            Items = o.Items.Select(oi => new OrderItemResponse
-            {
-                Name = oi.MenuItem?.Name ?? "Unknown",
-                MenuItemId = oi.MenuItemId,
-                Quantity = oi.Quantity,
-                UnitPrice = oi.UnitPrice
-            }).ToList()
-        }).ToList();
-
+        var mapping = orders.Select(ToResponse).ToList();
 
         return Ok(mapping);
 
