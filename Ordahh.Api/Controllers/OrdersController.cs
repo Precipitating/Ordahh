@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Dtos;
 using Ordahh.Api.Models;
+using SQLitePCL;
 
 namespace Ordahh.Api.Controllers;
 
@@ -88,5 +89,33 @@ public class OrdersController : ControllerBase
         };
 
         return Ok(response);
+    }
+    [HttpGet]
+    public async Task<IActionResult> GetOrders()
+    {
+        var orders = await _db.Orders
+            .Include(o => o.Items)
+            .ThenInclude(oi => oi.MenuItem)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync();
+
+        var mapping = orders.Select(o => new OrderResponse
+        {
+            Id = o.Id,
+            CreatedAt = DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc),
+            Status = o.Status,
+            Total = o.Total,
+            Items = o.Items.Select(oi => new OrderItemResponse
+            {
+                Name = oi.MenuItem?.Name ?? "Unknown",
+                MenuItemId = oi.MenuItemId,
+                Quantity = oi.Quantity,
+                UnitPrice = oi.UnitPrice
+            }).ToList()
+        }).ToList();
+
+
+        return Ok(mapping);
+
     }
 }
