@@ -1,5 +1,4 @@
-
-POST http://localhost:5276/api/orders
+PATCH http://localhost:5276/api/orders/13/status
 Content-Type: application/json
 
-{ "items": [ { "menuItemId": 1, "quantity": 55 }, { "menuItemId": 1, "quantity": 3 } ] }
+{ "status": 99 }
