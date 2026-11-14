@@ -13,7 +13,6 @@ public enum OrderStatus
 {
     Received,
     Preparing,
-    Ready,
     Completed,
     Cancelled
 }
