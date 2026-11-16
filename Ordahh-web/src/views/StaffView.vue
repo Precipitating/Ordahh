@@ -27,6 +27,10 @@ onMounted(() => {
         console.log('Disconnected from SignalR hub')
     })
 
+    connection.on('OrderCreated', (order) => {
+        console.log('New order received', order)
+    })
+
     fetchSite() // initial load, independent of the connection
 
     connection.start()

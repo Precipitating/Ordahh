@@ -3,18 +3,23 @@ using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Dtos;
 using Ordahh.Api.Models;
+using Microsoft.AspNetCore.SignalR;
+using Ordahh.Api.Hubs;
 
 namespace Ordahh.Api.Controllers;
+
 
 [ApiController]
 [Route("api/[controller]")]
 public class OrdersController : ControllerBase
 {
     private readonly AppDBContext _db;
+    private readonly IHubContext<OrdersHub> _hub;
 
-    public OrdersController(AppDBContext db)
+    public OrdersController(AppDBContext db, IHubContext<OrdersHub> hub)
     {
         _db = db;
+        _hub = hub;
     }
 
     private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedMoves = new()
@@ -137,6 +142,7 @@ public class OrdersController : ControllerBase
             }).ToList()
         };
 
+        await _hub.Clients.All.SendAsync("OrderCreated", response);
         return Ok(response);
     }
     [HttpGet]
