@@ -13,6 +13,7 @@ const connection = new signalR.HubConnectionBuilder()
 
 let timer = null
 
+
 onMounted(() => {
     connection.onreconnecting(() => {
         console.log('Reconnecting to SignalR hub...')
@@ -29,6 +30,10 @@ onMounted(() => {
 
     connection.on('OrderCreated', (order) => {
         console.log('New order received', order)
+        const exists = orders.value.some(o => o.id === order.id)
+        if (exists) return
+
+        orders.value.unshift(order) // add to the top of the list
     })
 
     fetchSite() // initial load, independent of the connection
