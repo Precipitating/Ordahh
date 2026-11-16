@@ -36,6 +36,14 @@ onMounted(() => {
         orders.value.unshift(order) // add to the top of the list
     })
 
+    connection.on('StatusUpdated', (status) => {
+        console.log('Order status updated', status)
+        const index = orders.value.findIndex(o => o.id === status.id)
+        if (index !== -1) orders.value[index] = status
+
+
+    })
+
     fetchSite() // initial load, independent of the connection
 
     connection.start()

@@ -67,6 +67,7 @@ public class OrdersController : ControllerBase
         order.Status = request.Status;
         await _db.SaveChangesAsync();
 
+        await _hub.Clients.All.SendAsync("StatusUpdated", ToResponse(order));
         return Ok(ToResponse(order));
     }
 
