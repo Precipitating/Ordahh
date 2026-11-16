@@ -1,25 +1,42 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-
+import * as signalR from '@microsoft/signalr'
 const API_URL = 'http://localhost:5276' 
 
 const orders = ref([])
 const loading = ref(true)
 const error = ref('')
-
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl(`${API_URL}/hubs/orders`)
+    .withAutomaticReconnect()
+    .build()
 
 let timer = null
 
-onMounted(async () => {
-    fetchSite()
-    timer = setInterval(fetchSite, 5000) // refresh every 5 seconds
+onMounted(() => {
+    connection.onreconnecting(() => {
+        console.log('Reconnecting to SignalR hub...')
+    })
 
+    connection.onreconnected(() => {
+        console.log('Reconnected to SignalR hub')
+        fetchSite() // catch up on anything missed while disconnected
+    })
+
+    connection.onclose(() => {
+        console.log('Disconnected from SignalR hub')
+    })
+
+    fetchSite() // initial load, independent of the connection
+
+    connection.start()
+        .then(() => console.log('Connected to SignalR hub'))
+        .catch(err => console.error('Error connecting to SignalR hub:', err))
 })
 
 onUnmounted(() => {
-    clearInterval(timer)
+    connection.stop()
 })
-
 async function fetchSite()
 { 
     try {
