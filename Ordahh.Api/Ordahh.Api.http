@@ -1,4 +1,1 @@
-PATCH http://localhost:5276/api/orders/13/status
-Content-Type: application/json
-
-{ "status": 99 }
+POST http://localhost:5276/hubs/orders/negotiate?negotiateVersion=1
