@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const API_URL = 'http://localhost:5276' 
 
@@ -7,18 +7,32 @@ const orders = ref([])
 const loading = ref(true)
 const error = ref('')
 
+
+let timer = null
+
 onMounted(async () => {
-      try {
+    fetchSite()
+    timer = setInterval(fetchSite, 5000) // refresh every 5 seconds
+
+})
+
+onUnmounted(() => {
+    clearInterval(timer)
+})
+
+async function fetchSite()
+{ 
+    try {
         const response = await fetch(`${API_URL}/api/orders`)
         if (!response.ok) throw new Error(`Server returned ${response.status}`)
         orders.value = await response.json()
-      } catch (e) {
+    } catch (e) {
         error.value = 'Could not load orders.'
         console.error(e)
-      } finally {
+    } finally {
         loading.value = false
-      }
-})
+    }
+}
 
 const transitions = {
     Received: ['Preparing', 'Cancelled'],
