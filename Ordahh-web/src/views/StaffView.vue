@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as signalR from '@microsoft/signalr'
 const API_URL = 'http://localhost:5276' 
 
@@ -12,7 +12,13 @@ const connection = new signalR.HubConnectionBuilder()
     .build()
 
 let timer = null
+const showClosed = ref(false)
 
+
+const visibleOrders = computed(() => {
+    if (showClosed.value) return orders.value
+    return orders.value.filter(o => (transitions[o.status] ?? []).length > 0)
+})
 
 onMounted(() => {
     connection.onreconnecting(() => {
@@ -111,13 +117,16 @@ async function changeStatus(order, newStatus) {
 
 <template>
     <main>
-        <h1>Orders</h1>
-        <p v-if="statusError" class="error">{{ statusError }}</p>
+        <label>
+            <input type="checkbox" v-model="showClosed" />
+            Show completed and cancelled
+        </label>
+
         <p v-if="loading">Loading...</p>
         <p v-else-if="error">{{ error }}</p>
-        <p v-else-if="orders.length === 0">No orders yet.</p>
+        <p v-else-if="visibleOrders.length === 0">No orders to show.</p>
 
-        <section v-for="order in orders" :key="order.id" class="order">
+        <section v-for="order in visibleOrders" :key="order.id" class="order">
             <h2>
                 Order #{{ order.id }}
                 <span class="status">{{ order.status }}</span>
