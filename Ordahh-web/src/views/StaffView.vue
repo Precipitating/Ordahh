@@ -13,16 +13,42 @@ const connection = new signalR.HubConnectionBuilder()
 
 let timer = null
 const showClosed = ref(false)
-
+const now = ref(Date.now())
+let clockTimer = null
+const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' })
 
 const visibleOrders = computed(() => {
     if (showClosed.value) return orders.value
     return orders.value.filter(o => (transitions[o.status] ?? []).length > 0)
 })
 
+function timeAgo(iso) {
+    const then = new Date(iso)
+    const minutes = Math.floor((now.value - then.getTime()) / 60000)
+
+    if (minutes < 1) return 'just now'
+    if (minutes < 60) return rtf.format(-minutes, 'minute')
+
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return rtf.format(-hours, 'hour')
+
+    const days = Math.floor(hours / 24)
+    if (days < 7) return rtf.format(-days, 'day')
+
+    const options = { month: 'short', day: 'numeric' }
+    if (then.getFullYear() !== new Date(now.value).getFullYear()) {
+        options.year = 'numeric'
+    }
+    return then.toLocaleDateString('en', options)
+}
+
 onMounted(() => {
     connection.onreconnecting(() => {
         console.log('Reconnecting to SignalR hub...')
+        clockTimer = setInterval(() => {
+            now.value = Date.now()
+        }, 30000)
+
     })
 
     connection.onreconnected(() => {
@@ -58,6 +84,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    clearInterval(clockTimer)
     connection.stop()
 })
 async function fetchSite()
@@ -131,7 +158,7 @@ async function changeStatus(order, newStatus) {
                 Order #{{ order.id }}
                 <span class="status">{{ order.status }}</span>
             </h2>
-            <p class="time">{{ new Date(order.createdAt).toLocaleString() }}</p>
+            <p class="time">{{ timeAgo(order.createdAt) }}</p>
 
             <ul>
                 <li v-for="line in order.items" :key="line.menuItemId">
