@@ -1,163 +1,176 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as signalR from '@microsoft/signalr'
-const API_URL = 'http://localhost:5276' 
+const API_URL = 'http://localhost:5276'
 
 const orders = ref([])
 const loading = ref(true)
 const error = ref('')
 const connection = new signalR.HubConnectionBuilder()
-    .withUrl(`${API_URL}/hubs/orders`)
-    .withAutomaticReconnect()
-    .build()
+        .withUrl(`${API_URL}/hubs/orders`)
+        .withAutomaticReconnect()
+        .build()
 
-let timer = null
 const showClosed = ref(false)
 const now = ref(Date.now())
-let clockTimer = null
+/** @type {ReturnType<typeof setInterval> | undefined} */
+let clockTimer
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' })
 
 const transitions = {
-    Received: ['Preparing', 'Cancelled'],
-    Preparing: ['Completed'],
-    Completed: [],
-    Cancelled: [],
+        Received: ['Preparing', 'Cancelled'],
+        Preparing: ['Completed'],
+        Completed: [],
+        Cancelled: [],
 }
 const updatingId = ref(null)
 const statusError = ref('')
 
 const actionLabels = {
-    Preparing: 'Start preparing',
-    Completed: 'Complete',
-    Cancelled: 'Cancel',
+        Preparing: 'Start preparing',
+        Completed: 'Complete',
+        Cancelled: 'Cancel',
 }
 
-// -------------------------------------------------------------------------------------------//
+const columns = [
+        { status: 'Received', title: 'New', closed: false },
+        { status: 'Preparing', title: 'In progress', closed: false },
+        { status: 'Completed', title: 'Completed', closed: true },
+        { status: 'Cancelled', title: 'Cancelled', closed: true },
+]
 
-// filter out orders that are already completed or cancelled, unless the checkbox is checked
-const visibleOrders = computed(() => {
-    if (showClosed.value) return orders.value
-    return orders.value.filter(o => (transitions[o.status] ?? []).length > 0)
+// ------------------------------------------------------------------------------------------- //
+
+// the closed columns only appear when the checkbox is ticked
+const visibleColumns = computed(() =>
+        columns.filter(c => showClosed.value || !c.closed)
+)
+
+// one bucket of orders per status
+const ordersByStatus = computed(() => {
+        const groups = {}
+        for (const c of columns) groups[c.status] = []
+        for (const o of orders.value) {
+            if (groups[o.status]) groups[o.status].push(o)
+        }
+        // active columns: oldest first (longest wait on top); closed: newest first
+        for (const c of columns) {
+            if (!c.closed) groups[c.status].reverse()
+        }
+        return groups
 })
 
 // convert an ISO timestamp into a human-friendly relative time string
 function timeAgo(iso) {
-    const then = new Date(iso)
-    const minutes = Math.floor((now.value - then.getTime()) / 60000)
+        const then = new Date(iso)
+        const minutes = Math.floor((now.value - then.getTime()) / 60000)
 
-    if (minutes < 1) return 'just now'
-    if (minutes < 60) return rtf.format(-minutes, 'minute')
+        if (minutes < 1) return 'just now'
+        if (minutes < 60) return rtf.format(-minutes, 'minute')
 
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return rtf.format(-hours, 'hour')
+        const hours = Math.floor(minutes / 60)
+        if (hours < 24) return rtf.format(-hours, 'hour')
 
-    const days = Math.floor(hours / 24)
-    if (days < 7) return rtf.format(-days, 'day')
+        const days = Math.floor(hours / 24)
+        if (days < 7) return rtf.format(-days, 'day')
 
-    const options = { month: 'short', day: 'numeric' }
-    if (then.getFullYear() !== new Date(now.value).getFullYear()) {
-        options.year = 'numeric'
-    }
-    return then.toLocaleDateString('en', options)
+        const options = { month: 'short', day: 'numeric' }
+        if (then.getFullYear() !== new Date(now.value).getFullYear()) {
+            options.year = 'numeric'
+        }
+        return then.toLocaleDateString('en', options)
 }
 
-// update the "now" timestamp every 30 seconds, so the relative time strings stay current
 onMounted(() => {
-    connection.onreconnecting(() => {
-        console.log('Reconnecting to SignalR hub...')
+        // keep the "now" value current so relative times stay fresh
         clockTimer = setInterval(() => {
             now.value = Date.now()
         }, 30000)
 
-    })
+        connection.onreconnecting(() => {
+            console.log('Reconnecting to SignalR hub...')
+        })
 
-    connection.onreconnected(() => {
-        console.log('Reconnected to SignalR hub')
-        fetchSite() // catch up on anything missed while disconnected
-    })
+        connection.onreconnected(() => {
+            console.log('Reconnected to SignalR hub')
+            fetchSite() // catch up on anything missed while disconnected
+        })
 
-    connection.onclose(() => {
-        console.log('Disconnected from SignalR hub')
-    })
+        connection.onclose(() => {
+            console.log('Disconnected from SignalR hub')
+        })
 
-    connection.on('OrderCreated', (order) => {
-        console.log('New order received', order)
-        const exists = orders.value.some(o => o.id === order.id)
-        if (exists) return
+        connection.on('OrderCreated', (order) => {
+            const exists = orders.value.some(o => o.id === order.id)
+            if (exists) return
 
-        orders.value.unshift(order) // add to the top of the list
-    })
+            orders.value.unshift(order) // newest first
+        })
 
-    // update an order in the list when its status changes
-    connection.on('StatusUpdated', (status) => {
-        console.log('Order status updated', status)
-        const index = orders.value.findIndex(o => o.id === status.id)
-        if (index !== -1) orders.value[index] = status
+        // replace an order in the list when its status changes
+        // NOTE: this string must match the event name your controller sends
+        connection.on('StatusUpdated', (updated) => {
+            const index = orders.value.findIndex(o => o.id === updated.id)
+            if (index !== -1) orders.value[index] = updated
+        })
 
+        fetchSite() // initial load, independent of the connection
 
-    })
-
-    fetchSite() // initial load, independent of the connection
-
-    connection.start()
-        .then(() => console.log('Connected to SignalR hub'))
-        .catch(err => console.error('Error connecting to SignalR hub:', err))
+        connection.start()
+            .then(() => console.log('Connected to SignalR hub'))
+            .catch(err => console.error('Error connecting to SignalR hub:', err))
 })
 
 onUnmounted(() => {
-    clearInterval(clockTimer)
-    connection.stop()
+        clearInterval(clockTimer)
+        connection.stop()
 })
 
-
 // fetch the list of orders from the server
-async function fetchSite()
-{ 
-    try {
-        const response = await fetch(`${API_URL}/api/orders`)
-        if (!response.ok) throw new Error(`Server returned ${response.status}`)
-        orders.value = await response.json()
-    } catch (e) {
-        error.value = 'Could not load orders.'
-        console.error(e)
-    } finally {
-        loading.value = false
-    }
+async function fetchSite() {
+        try {
+            const response = await fetch(`${API_URL}/api/orders`)
+            if (!response.ok) throw new Error(`Server returned ${response.status}`)
+            orders.value = await response.json()
+            error.value = ''
+        } catch (e) {
+            error.value = 'Could not load orders.'
+            console.error(e)
+        } finally {
+            loading.value = false
+        }
 }
-
-
 
 async function changeStatus(order, newStatus) {
-    if (updatingId.value !== null) return
-    if (newStatus === 'Cancelled' && !confirm(`Cancel order #${order.id}?`)) return
+        if (updatingId.value !== null) return
+        if (newStatus === 'Cancelled' && !confirm(`Cancel order #${order.id}?`)) return
 
-    updatingId.value = order.id
-    statusError.value = ''
+        updatingId.value = order.id
+        statusError.value = ''
 
-    try {
-        const response = await fetch(`${API_URL}/api/orders/${order.id}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus }),
-        })
+        try {
+            const response = await fetch(`${API_URL}/api/orders/${order.id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            })
 
-        if (!response.ok) {
-            // a 409 arrives as plain text; a 404 has an empty body
-            statusError.value = (await response.text()) || 'Could not update the order.'
-            return
+            if (!response.ok) {
+                // a 409 arrives as plain text; a 404 has an empty body
+                statusError.value = (await response.text()) || 'Could not update the order.'
+                return
+            }
+
+            const updated = await response.json()
+            const index = orders.value.findIndex(o => o.id === updated.id)
+            if (index !== -1) orders.value[index] = updated
+        } catch (e) {
+            statusError.value = 'Could not reach the server.'
+            console.error(e)
+        } finally {
+            updatingId.value = null
         }
-
-        const updated = await response.json()
-        const index = orders.value.findIndex(o => o.id === updated.id)
-        if (index !== -1) orders.value[index] = updated
-    } catch (e) {
-        statusError.value = 'Could not reach the server.'
-        console.error(e)
-    } finally {
-        updatingId.value = null
-    }
 }
-
 </script>
 
 <template>
@@ -167,52 +180,106 @@ async function changeStatus(order, newStatus) {
             Show completed and cancelled
         </label>
 
+        <p v-if="statusError" class="error">{{ statusError }}</p>
+
         <p v-if="loading">Loading...</p>
         <p v-else-if="error">{{ error }}</p>
-        <p v-else-if="visibleOrders.length === 0">No orders to show.</p>
+        <p v-else-if="orders.length === 0">No orders yet.</p>
 
-        <section v-for="order in visibleOrders" :key="order.id" class="order" :class="`status-${order.status}`">
-            <h2>
-                Order #{{ order.id }}
-                <span class="status">{{ order.status }}</span>
-            </h2>
-            <p class="time">{{ timeAgo(order.createdAt) }}</p>
+        <div v-if="!loading" class="board">
+            <section v-for="col in visibleColumns" :key="col.status" class="column">
+                <h2>
+                    {{ col.title }}
+                    <span class="count">{{ ordersByStatus[col.status].length }}</span>
+                </h2>
 
-            <ul>
-                <li v-for="line in order.items" :key="line.menuItemId">
-                    {{ line.quantity }}x {{ line.name }}
-                </li>
-            </ul>
+                <p v-if="ordersByStatus[col.status].length === 0" class="empty">Nothing here</p>
 
-            <p><strong>Total: ${{ order.total.toFixed(2) }}</strong></p>
+                <section v-for="order in ordersByStatus[col.status]"
+                         :key="order.id"
+                         class="order"
+                         :class="`status-${order.status}`">
+                    <h3>
+                        Order #{{ order.id }}
+                        <span class="status">{{ order.status }}</span>
+                    </h3>
+                    <p class="time">{{ timeAgo(order.createdAt) }}</p>
 
-            <div class="actions">
-                <button v-for="next in transitions[order.status] ?? []"
-                        :key="next"
-                        :class="`btn-${next}`"
-                        :disabled="updatingId !== null"
-                        @click="changeStatus(order, next)">
-                    {{ actionLabels[next] || next }}
-                </button>
-            </div>
-        </section>
+                    <ul>
+                        <li v-for="line in order.items" :key="line.menuItemId">
+                            {{ line.quantity }}x {{ line.name }}
+                        </li>
+                    </ul>
+
+                    <p><strong>Total: ${{ order.total.toFixed(2) }}</strong></p>
+
+                    <div class="actions">
+                        <button v-for="next in transitions[order.status] ?? []"
+                                :key="next"
+                                :class="`btn-${next}`"
+                                :disabled="updatingId !== null"
+                                @click="changeStatus(order, next)">
+                            {{ actionLabels[next] ?? next }}
+                        </button>
+                    </div>
+                </section>
+            </section>
+        </div>
     </main>
 </template>
 
 <style scoped>
     main {
-        max-width: 700px;
+        max-width: 1400px;
         margin: 0 auto;
         padding: 1rem;
     }
 
+    .board {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+        align-items: start;
+        margin-top: 1rem;
+    }
+
+    .column {
+        background: #f5f5f5;
+        border-radius: 8px;
+        padding: 0.75rem;
+    }
+
+        .column h2 {
+            margin: 0 0 0.75rem;
+            font-size: 1.1rem;
+        }
+
+    .count {
+        margin-left: 0.4rem;
+        padding: 0 0.5rem;
+        border-radius: 999px;
+        background: #ddd;
+        font-size: 0.85rem;
+    }
+
+    .empty {
+        color: #888;
+        text-align: center;
+        margin: 1rem 0;
+    }
+
     .order {
+        background: #fff;
         border: 1px solid #ddd;
         border-left: 6px solid #9e9e9e;
         border-radius: 6px;
         padding: 0.75rem 1rem;
         margin-bottom: 1rem;
     }
+
+        .order h3 {
+            margin: 0;
+        }
 
     .status {
         font-size: 0.9rem;
