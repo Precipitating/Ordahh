@@ -17,11 +17,30 @@ const now = ref(Date.now())
 let clockTimer = null
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' })
 
+const transitions = {
+    Received: ['Preparing', 'Cancelled'],
+    Preparing: ['Completed'],
+    Completed: [],
+    Cancelled: [],
+}
+const updatingId = ref(null)
+const statusError = ref('')
+
+const actionLabels = {
+    Preparing: 'Start preparing',
+    Completed: 'Complete',
+    Cancelled: 'Cancel',
+}
+
+// -------------------------------------------------------------------------------------------//
+
+// filter out orders that are already completed or cancelled, unless the checkbox is checked
 const visibleOrders = computed(() => {
     if (showClosed.value) return orders.value
     return orders.value.filter(o => (transitions[o.status] ?? []).length > 0)
 })
 
+// convert an ISO timestamp into a human-friendly relative time string
 function timeAgo(iso) {
     const then = new Date(iso)
     const minutes = Math.floor((now.value - then.getTime()) / 60000)
@@ -42,6 +61,7 @@ function timeAgo(iso) {
     return then.toLocaleDateString('en', options)
 }
 
+// update the "now" timestamp every 30 seconds, so the relative time strings stay current
 onMounted(() => {
     connection.onreconnecting(() => {
         console.log('Reconnecting to SignalR hub...')
@@ -68,6 +88,7 @@ onMounted(() => {
         orders.value.unshift(order) // add to the top of the list
     })
 
+    // update an order in the list when its status changes
     connection.on('StatusUpdated', (status) => {
         console.log('Order status updated', status)
         const index = orders.value.findIndex(o => o.id === status.id)
@@ -87,6 +108,9 @@ onUnmounted(() => {
     clearInterval(clockTimer)
     connection.stop()
 })
+
+
+// fetch the list of orders from the server
 async function fetchSite()
 { 
     try {
@@ -101,17 +125,11 @@ async function fetchSite()
     }
 }
 
-const transitions = {
-    Received: ['Preparing', 'Cancelled'],
-    Preparing: ['Completed'],
-    Completed: [],
-    Cancelled: [],
-}
-const updatingId = ref(null)
-const statusError = ref('')
+
 
 async function changeStatus(order, newStatus) {
     if (updatingId.value !== null) return
+    if (newStatus === 'Cancelled' && !confirm(`Cancel order #${order.id}?`)) return
 
     updatingId.value = order.id
     statusError.value = ''
@@ -171,9 +189,10 @@ async function changeStatus(order, newStatus) {
             <div class="actions">
                 <button v-for="next in transitions[order.status] ?? []"
                         :key="next"
+                        :class="`btn-${next}`"
                         :disabled="updatingId !== null"
                         @click="changeStatus(order, next)">
-                    {{ next }}
+                    {{ actionLabels[next] || next }}
                 </button>
             </div>
         </section>
@@ -209,14 +228,12 @@ async function changeStatus(order, newStatus) {
     ul {
         padding-left: 1.2rem;
     }
+
     .error {
         color: #b00020;
     }
-    .actions {
-        display: flex;
-        gap: 0.5rem;
-    }
 
+    /* status colours on the card */
     .status-Received {
         border-left-color: #e65100; /* orange: needs attention */
     }
@@ -234,4 +251,70 @@ async function changeStatus(order, newStatus) {
         border-left-color: #9e9e9e; /* grey: closed */
         opacity: 0.6;
     }
+
+    /* status colours on the label */
+    .status-Received .status {
+        color: #e65100;
+    }
+
+    .status-Preparing .status {
+        color: #1565c0;
+    }
+
+    .status-Completed .status {
+        color: #2e7d32;
+    }
+
+    .status-Cancelled .status {
+        color: #757575;
+    }
+
+    /* action buttons */
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+
+        .actions button {
+            min-height: 48px;
+            min-width: 120px;
+            padding: 0.5rem 1.25rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            transition: filter 0.1s, transform 0.05s;
+        }
+
+        .actions .btn-Preparing {
+            background: #1565c0;
+        }
+
+        .actions .btn-Completed {
+            background: #2e7d32;
+        }
+
+        /* destructive action: outlined, so it's harder to hit by habit */
+        .actions .btn-Cancelled {
+            background: transparent;
+            color: #b00020;
+            border-color: #b00020;
+        }
+
+        .actions button:hover {
+            filter: brightness(1.1);
+        }
+
+        .actions button:active {
+            transform: scale(0.97);
+        }
+
+        .actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 </style>
