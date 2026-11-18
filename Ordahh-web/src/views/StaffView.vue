@@ -153,7 +153,7 @@ async function changeStatus(order, newStatus) {
         <p v-else-if="error">{{ error }}</p>
         <p v-else-if="visibleOrders.length === 0">No orders to show.</p>
 
-        <section v-for="order in visibleOrders" :key="order.id" class="order">
+        <section v-for="order in visibleOrders" :key="order.id" class="order" :class="`status-${order.status}`">
             <h2>
                 Order #{{ order.id }}
                 <span class="status">{{ order.status }}</span>
@@ -189,6 +189,7 @@ async function changeStatus(order, newStatus) {
 
     .order {
         border: 1px solid #ddd;
+        border-left: 6px solid #9e9e9e;
         border-radius: 6px;
         padding: 0.75rem 1rem;
         margin-bottom: 1rem;
@@ -214,5 +215,23 @@ async function changeStatus(order, newStatus) {
     .actions {
         display: flex;
         gap: 0.5rem;
+    }
+
+    .status-Received {
+        border-left-color: #e65100; /* orange: needs attention */
+    }
+
+    .status-Preparing {
+        border-left-color: #1565c0; /* blue: in progress */
+    }
+
+    .status-Completed {
+        border-left-color: #2e7d32; /* green: done */
+        opacity: 0.75;
+    }
+
+    .status-Cancelled {
+        border-left-color: #9e9e9e; /* grey: closed */
+        opacity: 0.6;
     }
 </style>
