@@ -22,6 +22,10 @@ public class AppDBContext : DbContext
             new MenuItem { Id = 6, Name = "Lemonade", Price = 2.99m, CategoryId = 3 }
         );
 
+
+        // Ensure that the Username field in the User entity is unique
+        modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
+
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.MenuItem)
             .WithMany()
@@ -35,4 +39,5 @@ public class AppDBContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<User> Users => Set<User>();
 }

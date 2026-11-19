@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Hubs;
+using Ordahh.Api.Models;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,6 +39,28 @@ builder.Services.AddSignalR().AddJsonProtocol(options =>
 
 var app = builder.Build();
 app.UseCors("Frontend");
+
+// Seed the database with a default staff user if no users exist
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+
+    if (!await db.Users.AnyAsync())
+    {
+        var username = builder.Configuration["Seed:StaffUsername"];
+        var password = builder.Configuration["Seed:StaffPassword"];
+
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException(
+                "No users exist and Seed:StaffUsername / Seed:StaffPassword are not set.");
+
+        var user = new User { Username = username, Role = "Staff" };
+        user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+    }
+}
 
 
 // Configure the HTTP request pipeline.

@@ -178,6 +178,32 @@ namespace Ordahh.Api.Migrations
                     b.ToTable("OrderItems");
                 });
 
+            modelBuilder.Entity("Ordahh.Api.Models.User", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
             modelBuilder.Entity("Ordahh.Api.Models.MenuItem", b =>
                 {
                     b.HasOne("Ordahh.Api.Models.Category", "Category")
@@ -198,7 +224,7 @@ namespace Ordahh.Api.Migrations
                         .IsRequired();
 
                     b.HasOne("Ordahh.Api.Models.Order", "Order")
-                        .WithMany()
+                        .WithMany("Items")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -209,6 +235,11 @@ namespace Ordahh.Api.Migrations
                 });
 
             modelBuilder.Entity("Ordahh.Api.Models.Category", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Ordahh.Api.Models.Order", b =>
                 {
                     b.Navigation("Items");
                 });
