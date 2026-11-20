@@ -2,8 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useCartStore } from '../stores/cart'
 import MenuItem from '../components/MenuItem.vue'
-
-const API_URL = 'http://localhost:5276' // keep your working backend port
+import { API_URL } from '../api'
 const cart = useCartStore()
 
 const menu = ref([])

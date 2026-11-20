@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as signalR from '@microsoft/signalr'
-const API_URL = 'http://localhost:5276'
+import { API_URL } from '../api'
 
 const orders = ref([])
 const loading = ref(true)
@@ -13,7 +13,6 @@ const connection = new signalR.HubConnectionBuilder()
 
 const showClosed = ref(false)
 const now = ref(Date.now())
-/** @type {ReturnType<typeof setInterval> | undefined} */
 let clockTimer
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' })
 

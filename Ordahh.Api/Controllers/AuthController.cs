@@ -73,8 +73,8 @@ public class AuthController : ControllerBase
             return Unauthorized("Invalid username or password.");
 
         // 5. For now, just confirm it worked (a token comes next)
-        return Ok("logged in");
+        return Ok(BuildToken(user));
 
-        
+
     }
 }
