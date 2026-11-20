@@ -23,6 +23,7 @@ public class AuthController : ControllerBase
         _config = config;
     }
 
+
     private CreateLoginResponse BuildToken(User user)
     {
         var claims = new[]

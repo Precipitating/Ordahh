@@ -5,6 +5,7 @@ using Ordahh.Api.Dtos;
 using Ordahh.Api.Models;
 using Microsoft.AspNetCore.SignalR;
 using Ordahh.Api.Hubs;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Ordahh.Api.Controllers;
 
@@ -48,6 +49,7 @@ public class OrdersController : ControllerBase
 
 
     [HttpPatch("{id}/status")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateOrderStatusRequest request)
     {
         if (!Enum.IsDefined(request.Status))
@@ -147,6 +149,7 @@ public class OrdersController : ControllerBase
         return Ok(response);
     }
     [HttpGet]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> GetOrders()
     {
         var orders = await _db.Orders
