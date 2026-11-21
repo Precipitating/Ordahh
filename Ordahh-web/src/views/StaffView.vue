@@ -2,12 +2,17 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as signalR from '@microsoft/signalr'
 import { API_URL } from '../api'
-
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 const orders = ref([])
 const loading = ref(true)
 const error = ref('')
+const auth = useAuthStore()
+const router = useRouter()
 const connection = new signalR.HubConnectionBuilder()
-        .withUrl(`${API_URL}/hubs/orders`)
+        .withUrl(`${API_URL}/hubs/orders`, {
+            accessTokenFactory: () => auth.token
+        })
         .withAutomaticReconnect()
         .build()
 
@@ -38,7 +43,13 @@ const columns = [
         { status: 'Cancelled', title: 'Cancelled', closed: true },
 ]
 
+
 // ------------------------------------------------------------------------------------------- //
+
+function logout() {
+    auth.logout()
+    router.push('/login')
+}
 
 // the closed columns only appear when the checkbox is ticked
 const visibleColumns = computed(() =>
@@ -128,7 +139,9 @@ onUnmounted(() => {
 // fetch the list of orders from the server
 async function fetchSite() {
         try {
-            const response = await fetch(`${API_URL}/api/orders`)
+            const response = await fetch(`${API_URL}/api/orders`, {
+                headers: { 'Authorization': `Bearer ${auth.token}` }
+            })
             if (!response.ok) throw new Error(`Server returned ${response.status}`)
             orders.value = await response.json()
             error.value = ''
@@ -150,7 +163,7 @@ async function changeStatus(order, newStatus) {
         try {
             const response = await fetch(`${API_URL}/api/orders/${order.id}/status`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
                 body: JSON.stringify({ status: newStatus }),
             })
 
@@ -174,10 +187,14 @@ async function changeStatus(order, newStatus) {
 
 <template>
     <main>
-        <label>
-            <input type="checkbox" v-model="showClosed" />
-            Show completed and cancelled
-        </label>
+        <div class="toolbar">
+            <label>
+                <input type="checkbox" v-model="showClosed" />
+                Show completed and cancelled
+            </label>
+
+            <button v-if="auth.isLoggedIn" class="logout" @click="logout">Log out</button>
+        </div>
 
         <p v-if="statusError" class="error">{{ statusError }}</p>
 
@@ -259,6 +276,12 @@ async function changeStatus(order, newStatus) {
         border-radius: 999px;
         background: #ddd;
         font-size: 0.85rem;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
     .empty {
