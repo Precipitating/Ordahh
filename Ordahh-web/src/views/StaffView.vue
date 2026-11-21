@@ -51,6 +51,7 @@ function logout() {
     router.push('/login')
 }
 
+
 // the closed columns only appear when the checkbox is ticked
 const visibleColumns = computed(() =>
         columns.filter(c => showClosed.value || !c.closed)
@@ -142,6 +143,9 @@ async function fetchSite() {
             const response = await fetch(`${API_URL}/api/orders`, {
                 headers: { 'Authorization': `Bearer ${auth.token}` }
             })
+            if (response.status === 401) {
+                logout()
+            }
             if (!response.ok) throw new Error(`Server returned ${response.status}`)
             orders.value = await response.json()
             error.value = ''
@@ -166,6 +170,11 @@ async function changeStatus(order, newStatus) {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
                 body: JSON.stringify({ status: newStatus }),
             })
+
+            if (response.status === 401) {
+                logout()
+                return
+            }   
 
             if (!response.ok) {
                 // a 409 arrives as plain text; a 404 has an empty body
