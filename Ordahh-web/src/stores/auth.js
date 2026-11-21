@@ -25,6 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
         })
 
         if (response.status === 401) throw new Error('Invalid username or password.')
+        if (response.status === 429) throw new Error('Too many attempts. Try again in a minute.')
         if (!response.ok) throw new Error('Could not log in. Please try again.')
 
         const data = await response.json()
