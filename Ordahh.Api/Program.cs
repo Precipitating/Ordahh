@@ -10,7 +10,9 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-
+var connectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Data Source=menu.db";
+var loginLimit = builder.Configuration.GetValue<int>("RateLimit:LoginPermitLimit", 5);
 // ---- services ----
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -21,7 +23,7 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDBContext>(options =>
-    options.UseSqlite("Data Source=menu.db"));
+    options.UseSqlite(connectionString));
 
 builder.Services.AddCors(options =>
 {
@@ -49,7 +51,7 @@ builder.Services.AddRateLimiter(options =>
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = loginLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -109,6 +111,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+    await db.Database.MigrateAsync();
 
     if (!await db.Users.AnyAsync())
     {
@@ -144,3 +147,8 @@ app.MapControllers();
 app.MapHub<OrdersHub>("/hubs/orders");
 
 app.Run();
+
+public partial class  Program 
+{
+    
+}
