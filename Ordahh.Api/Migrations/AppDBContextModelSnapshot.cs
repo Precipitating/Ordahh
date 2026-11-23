@@ -15,7 +15,7 @@ namespace Ordahh.Api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
             modelBuilder.Entity("Ordahh.Api.Models.Category", b =>
                 {
@@ -146,7 +146,13 @@ namespace Ordahh.Api.Migrations
                     b.Property<decimal>("Total")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("TrackingCode")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TrackingCode")
+                        .IsUnique();
 
                     b.ToTable("Orders");
                 });

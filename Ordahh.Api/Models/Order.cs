@@ -3,6 +3,7 @@ namespace Ordahh.Api.Models;
 public class Order
 {
     public int Id { get; set; }
+    public Guid TrackingCode { get; set; } = Guid.NewGuid();
     public List<OrderItem> Items { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public OrderStatus Status { get; set; } = OrderStatus.Received;

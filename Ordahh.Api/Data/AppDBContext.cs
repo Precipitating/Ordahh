@@ -25,6 +25,7 @@ public class AppDBContext : DbContext
 
         // Ensure that the Username field in the User entity is unique
         modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
+        modelBuilder.Entity<Order>().HasIndex(o => o.TrackingCode).IsUnique();
 
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.MenuItem)
