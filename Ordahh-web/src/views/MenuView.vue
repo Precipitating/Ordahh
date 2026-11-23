@@ -11,6 +11,7 @@ const error = ref('')
 const submitting = ref(false)
 const orderError = ref('')
 const search = ref('')
+const selectedCategory = ref(null)
 const confirmation = ref(null)
 
 onMounted(async () => {
@@ -35,14 +36,26 @@ const reshapeList = (list) =>
 }
 
 const filteredMenu = computed(() => {
-    if (!search.value) return menu.value
-    const term = search.value.toLowerCase()
-    return menu.value.map(category => ({
-        ...category,
-        items: category.items.filter(item => item.name.toLowerCase().includes(term))
-    })).filter(category => category.items.length > 0)
-})
+    const term = search.value.trim().toLowerCase()
 
+    // 1. category
+    const categories = selectedCategory.value === null
+        ? menu.value
+        : menu.value.filter(c => c.id === selectedCategory.value)
+
+    // 2. no search text: the category result is the answer
+    if (term === '') return categories
+
+    // 3. otherwise search within those categories
+    return categories
+        .map(category => ({
+            ...category,
+            items: category.items.filter(item =>
+                item.name.toLowerCase().includes(term) ||
+                (item.description ?? '').toLowerCase().includes(term))
+        }))
+        .filter(category => category.items.length > 0)
+})
 
 
 
@@ -98,7 +111,19 @@ async function placeOrder()
 
             <p v-if="loading">Loading...</p>
             <p v-else-if="error">{{ error }}</p>
-            <input v-else type="text" v-model="search" placeholder="Search..." />
+            <div class="filters">
+                <input v-model="search" type="search" placeholder="Search the menu" aria-label="Search the menu" />
+
+                <label class="category-select">
+                    <span class="sr-only">Category</span>
+                    <select v-model="selectedCategory">
+                        <option :value="null">All categories</option>
+                        <option v-for="category in menu" :key="category.id" :value="category.id">
+                            {{ category.name }}
+                        </option>
+                    </select>
+                </label>
+            </div>
             <section v-for="category in filteredMenu" :key="category.id">
                 <h2>{{ category.name }}</h2>
                 <ul>
@@ -193,6 +218,37 @@ async function placeOrder()
 
     .success {
         color: #008000;
+    }
+    .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 0.75rem 0;
+    }
+
+        .filters input {
+            flex: 1;
+            min-width: 180px;
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid #bbb;
+            border-radius: 6px;
+        }
+
+    .category-select select {
+        padding: 0.5rem;
+        font-size: 1rem;
+        border: 1px solid #bbb;
+        border-radius: 6px;
+        background: #fff;
+    }
+
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
     }
 
     @media (max-width: 700px) {
