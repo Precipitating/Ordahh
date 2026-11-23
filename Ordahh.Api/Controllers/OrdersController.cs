@@ -38,6 +38,7 @@ public class OrdersController : ControllerBase
         CreatedAt = DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc),
         Status = o.Status,
         Total = o.Total,
+        TrackingCode = o.TrackingCode,
         Items = o.Items.Select(oi => new OrderItemResponse
         {
             Name = oi.MenuItem?.Name ?? "Unknown",
@@ -72,7 +73,31 @@ public class OrdersController : ControllerBase
         await _hub.Clients.All.SendAsync("StatusUpdated", ToResponse(order));
         return Ok(ToResponse(order));
     }
+    [HttpGet("track/{code:guid}")]
+    public async Task<IActionResult> Track(Guid code)
+    {
+        var order = await _db.Orders
+            .Include(o => o.Items)
+            .ThenInclude(oi => oi.MenuItem)
+            .FirstOrDefaultAsync(o => o.TrackingCode == code);
 
+        if (order == null)
+            return NotFound();
+
+        return Ok(new TrackingResponse
+        {
+            Status = order.Status,
+            CreatedAt = DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc),
+            Total = order.Total,
+            Items = order.Items.Select(oi => new OrderItemResponse
+            {
+                Name = oi.MenuItem?.Name ?? "Unknown",
+                MenuItemId = oi.MenuItemId,
+                Quantity = oi.Quantity,
+                UnitPrice = oi.UnitPrice
+            }).ToList()
+        });
+    }
 
 
     [HttpPost]
@@ -136,6 +161,7 @@ public class OrdersController : ControllerBase
             CreatedAt = order.CreatedAt,
             Status = order.Status,
             Total = order.Total,
+            TrackingCode = order.TrackingCode,
             Items = order.Items.Select(oi => new OrderItemResponse
             {
                 Name = names[oi.MenuItemId],

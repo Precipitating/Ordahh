@@ -1,4 +1,14 @@
-POST http://localhost:5276/api/auth/login
+### place an order, copy trackingCode from the response
+POST http://localhost:5276/api/orders
 Content-Type: application/json
 
-{ "username": "staff", "password": "admin" }
+{ "items": [ { "menuItemId": 1, "quantity": 1 } ] }
+
+### track it, no token
+GET http://localhost:5276/api/orders/track/PASTE-CODE-HERE
+
+### a random valid GUID
+GET http://localhost:5276/api/orders/track/3f2b8c1e-0000-4000-8000-000000000000
+
+### not a GUID
+GET http://localhost:5276/api/orders/track/abc

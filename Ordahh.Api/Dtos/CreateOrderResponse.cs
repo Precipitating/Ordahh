@@ -4,7 +4,9 @@ namespace Ordahh.Api.Dtos;
 public class OrderResponse    
 {
     public List<OrderItemResponse> Items { get; set; } = new();
+
     public int Id { get; set; }
+    public Guid TrackingCode { get; set; }
     public DateTime CreatedAt { get; set; }
     public decimal Total { get; set; }
 
