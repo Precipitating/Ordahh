@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useCartStore } from '../stores/cart'
 import MenuItem from '../components/MenuItem.vue'
 import { API_URL } from '../api'
@@ -10,6 +10,7 @@ const loading = ref(true)
 const error = ref('')
 const submitting = ref(false)
 const orderError = ref('')
+const search = ref('')
 const confirmation = ref(null)
 
 onMounted(async () => {
@@ -32,6 +33,15 @@ const reshapeList = (list) =>
     console.log({ items: list.map(item => ({ menuItemId: item.id, quantity: item.quantity })) })
     return{ items: list.map(item => ({menuItemId: item.id, quantity: item.quantity})) }
 }
+
+const filteredMenu = computed(() => {
+    if (!search.value) return menu.value
+    const term = search.value.toLowerCase()
+    return menu.value.map(category => ({
+        ...category,
+        items: category.items.filter(item => item.name.toLowerCase().includes(term))
+    })).filter(category => category.items.length > 0)
+})
 
 
 
@@ -88,8 +98,8 @@ async function placeOrder()
 
             <p v-if="loading">Loading...</p>
             <p v-else-if="error">{{ error }}</p>
-
-            <section v-for="category in menu" :key="category.id">
+            <input v-else type="text" v-model="search" placeholder="Search..." />
+            <section v-for="category in filteredMenu" :key="category.id">
                 <h2>{{ category.name }}</h2>
                 <ul>
                     <li v-for="item in category.items" :key="item.id">
