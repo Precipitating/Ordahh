@@ -16,11 +16,16 @@ public class OrdersController : ControllerBase
 {
     private readonly AppDBContext _db;
     private readonly IHubContext<OrdersHub> _hub;
+    private readonly IHubContext<TrackingHub> _trackingHub;
 
-    public OrdersController(AppDBContext db, IHubContext<OrdersHub> hub)
+    public OrdersController(
+        AppDBContext db,
+        IHubContext<OrdersHub> hub,
+        IHubContext<TrackingHub> trackingHub)
     {
         _db = db;
         _hub = hub;
+        _trackingHub = trackingHub;   // easy to miss
     }
 
     private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedMoves = new()
@@ -47,7 +52,19 @@ public class OrdersController : ControllerBase
             UnitPrice = oi.UnitPrice
         }).ToList()
     };
-
+    private static TrackingResponse ToTracking(Order o) => new TrackingResponse
+    {
+        Status = o.Status,
+        CreatedAt = DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc),
+        Total = o.Total,
+        Items = o.Items.Select(oi => new OrderItemResponse
+        {
+            Name = oi.MenuItem?.Name ?? "Unknown",
+            MenuItemId = oi.MenuItemId,
+            Quantity = oi.Quantity,
+            UnitPrice = oi.UnitPrice
+        }).ToList()
+    };
 
     [HttpPatch("{id}/status")]
     [Authorize(Roles = "Staff")]
@@ -70,7 +87,22 @@ public class OrdersController : ControllerBase
         order.Status = request.Status;
         await _db.SaveChangesAsync();
 
-        await _hub.Clients.All.SendAsync("StatusUpdated", ToResponse(order));
+        var response = ToResponse(order);
+        try
+        {
+            // 1. staff: every staff board gets the full order
+            await _hub.Clients.All.SendAsync("StatusUpdated", response);
+
+            // 2. customer: only the tracking page(s) that joined this order's group
+            await _trackingHub.Clients
+                .Group(TrackingHub.GroupName(order.TrackingCode))
+                .SendAsync("OrderStatusChanged", ToTracking(order));
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine($"Push failed for order {order.Id}: {e.Message}");
+        }
+
         return Ok(ToResponse(order));
     }
     [HttpGet("track/{code:guid}")]
@@ -84,19 +116,7 @@ public class OrdersController : ControllerBase
         if (order == null)
             return NotFound();
 
-        return Ok(new TrackingResponse
-        {
-            Status = order.Status,
-            CreatedAt = DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc),
-            Total = order.Total,
-            Items = order.Items.Select(oi => new OrderItemResponse
-            {
-                Name = oi.MenuItem?.Name ?? "Unknown",
-                MenuItemId = oi.MenuItemId,
-                Quantity = oi.Quantity,
-                UnitPrice = oi.UnitPrice
-            }).ToList()
-        });
+        return Ok(ToTracking(order));
     }
 
 

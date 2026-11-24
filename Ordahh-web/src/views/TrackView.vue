@@ -1,50 +1,87 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import * as signalR from '@microsoft/signalr'
 import { API_URL } from '../api'
 
 const route = useRoute()
+const code = route.params.code
 
 const order = ref(null)
 const loading = ref(true)
 const error = ref('')
 
-// customer-friendly wording, kept in one place
 const statusLabels = {
-          Received: "We've got your order",
-          Preparing: 'Being prepared',
-          Completed: 'Ready!',
-          Cancelled: 'This order was cancelled',
+      Received: "We've got your order",
+      Preparing: 'Being prepared',
+      Completed: 'Ready!',
+      Cancelled: 'This order was cancelled',
 }
 
-// the normal path an order follows (Cancelled is a side exit, not a step)
 const steps = [
-          { status: 'Received', label: 'Received' },
-          { status: 'Preparing', label: 'Preparing' },
-          { status: 'Completed', label: 'Ready' },
+      { status: 'Received', label: 'Received' },
+      { status: 'Preparing', label: 'Preparing' },
+      { status: 'Completed', label: 'Ready' },
 ]
 
 const currentStep = computed(() =>
-          steps.findIndex(s => s.status === order.value?.status)
+      steps.findIndex(s => s.status === order.value?.status)
 )
 
+const connection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_URL}/hubs/tracking`)
+      .withAutomaticReconnect()
+      .build()
+
+async function loadOrder() {
+      try {
+        const response = await fetch(`${API_URL}/api/orders/track/${code}`)
+
+        if (response.status === 404) {
+          error.value = "We couldn't find that order. Check the link and try again."
+          return
+        }
+        if (!response.ok) throw new Error(`Server returned ${response.status}`)
+
+        order.value = await response.json()
+        error.value = ''
+      } catch (e) {
+        error.value = 'Could not reach the server. Please try again.'
+        console.error(e)
+      } finally {
+        loading.value = false
+      }
+}
+
+function joinGroup() {
+      return connection.invoke('JoinOrder', code)
+}
+
 onMounted(async () => {
-          try {
-            const response = await fetch(`${API_URL}/api/orders/track/${route.params.code}`)
+      // a pushed update replaces the whole order
+      connection.on('OrderStatusChanged', (updated) => {
+        order.value = updated
+      })
 
-            if (response.status === 404) {
-              error.value = "We couldn't find that order. Check the link and try again."
-              return
-            }
-            if (!response.ok) throw new Error(`Server returned ${response.status}`)
+      // after a reconnect the server has forgotten our group, so rejoin and catch up
+      connection.onreconnected(async () => {
+        await joinGroup()
+        await loadOrder()
+      })
 
-            order.value = await response.json()
-          } catch (e) {
-            error.value = 'Could not reach the server. Please try again.'
-            console.error(e)
-          } finally {
-            loading.value = false
-          }
+      // join the group BEFORE the first fetch, so no change can slip between the two
+      try {
+        await connection.start()
+        await joinGroup()
+      } catch (e) {
+        console.error('Live updates unavailable', e)
+      }
+
+      await loadOrder()
+})
+
+onUnmounted(() => {
+      connection.stop()
 })
 </script>
 

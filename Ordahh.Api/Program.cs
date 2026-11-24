@@ -145,6 +145,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<OrdersHub>("/hubs/orders");
+app.MapHub<TrackingHub>("/hubs/tracking");
 
 app.Run();
 

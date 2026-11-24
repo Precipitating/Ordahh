@@ -2,10 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useCartStore } from '../stores/cart'
 import MenuItem from '../components/MenuItem.vue'
+import { useRecentOrdersStore } from '../stores/recentOrders'
 import { API_URL } from '../api'
 const cart = useCartStore()
 
 const menu = ref([])
+const recent = useRecentOrdersStore()
 const loading = ref(true)
 const error = ref('')
 const submitting = ref(false)
@@ -91,6 +93,7 @@ async function placeOrder()
         }
 
         confirmation.value = await response.json()
+        recent.add(confirmation.value)
         cart.clear()
     } catch (e) {
         orderError.value = 'Could not reach the server.'
@@ -160,9 +163,22 @@ async function placeOrder()
             <p v-if="orderError" class="error">{{ orderError }}</p>
 
             <p v-if="confirmation" class="success">
-                Order #{{ confirmation.id }} placed. Total:
-                <strong>${{ confirmation.total.toFixed(2) }}</strong>
+                Order placed. Total: <strong>${{ confirmation.total.toFixed(2) }}</strong>
+                <br />
+                <RouterLink :to="`/track/${confirmation.trackingCode}`">Track your order</RouterLink>
             </p>
+
+            <section v-if="recent.orders.length" class="recent">
+                <h3>Your recent orders</h3>
+                <ul>
+                    <li v-for="o in recent.orders" :key="o.code">
+                        <RouterLink :to="`/track/${o.code}`">
+                            ${{ Number(o.total).toFixed(2) }} · {{ new Date(o.placedAt).toLocaleString() }}
+                        </RouterLink>
+                    </li>
+                </ul>
+                <button @click="recent.clear()">Clear list</button>
+            </section>
         </aside>
     </div>
 </template>
@@ -250,6 +266,14 @@ async function placeOrder()
         overflow: hidden;
         clip: rect(0 0 0 0);
     }
+
+    .recent {
+        margin-top: 1.5rem;
+    }
+
+        .recent h3 {
+            margin-bottom: 0.25rem;
+        }
 
     @media (max-width: 700px) {
         .layout {
