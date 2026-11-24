@@ -17,15 +17,18 @@ public class OrdersController : ControllerBase
     private readonly AppDBContext _db;
     private readonly IHubContext<OrdersHub> _hub;
     private readonly IHubContext<TrackingHub> _trackingHub;
+    private readonly ILogger<OrdersController> _logger;
 
     public OrdersController(
         AppDBContext db,
         IHubContext<OrdersHub> hub,
-        IHubContext<TrackingHub> trackingHub)
+        IHubContext<TrackingHub> trackingHub,
+        ILogger<OrdersController> logger)
     {
         _db = db;
         _hub = hub;
-        _trackingHub = trackingHub;   // easy to miss
+        _trackingHub = trackingHub;
+        _logger = logger;
     }
 
     private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedMoves = new()
@@ -100,7 +103,7 @@ public class OrdersController : ControllerBase
         }
         catch (Exception e)
         {
-            Console.Error.WriteLine($"Push failed for order {order.Id}: {e.Message}");
+            _logger.LogError(e, $"Push failed for order {order.Id}");
         }
 
         return Ok(ToResponse(order));
