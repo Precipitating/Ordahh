@@ -1,17 +1,5 @@
-### place an order, copy trackingCode from the response
-POST http://localhost:5276/api/orders
+
+POST http://localhost:5276/api/auth/login
 Content-Type: application/json
 
-{ "items": [ { "menuItemId": 1, "quantity": 1 } ] }
-
-### track it, no token
-GET http://localhost:5276/api/orders/track/80a49f70-12ca-4fc5-a6b2-7b6a0232ad23
-
-### a random valid GUID
-GET http://localhost:5276/api/orders/track/3f2b8c1e-0000-4000-8000-000000000000
-
-### not a GUID
-GET http://localhost:5276/api/orders/track/abc
-
-
-GET http://localhost:5276/api/admin/menu
+{ "username": "staff", "password": "your-seeded-password" }
