@@ -69,4 +69,21 @@ public class AdminMenuController : ControllerBase
 
         return Ok(ToResponse(item));
     }
+    [HttpPatch("menu-items/{id}/availability")]
+    public async Task<IActionResult> UpdateAvailability(int id, MenuItemAvailabilityRequest request)
+    {
+        var item = await _db.MenuItems
+             .Include(m => m.Category)
+             .FirstOrDefaultAsync(m => m.Id == id); 
+
+        if (item == null)
+        {
+            return NotFound();
+        }
+
+        item.IsAvailable = request.IsAvailable;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToResponse(item));
+    }
 }
