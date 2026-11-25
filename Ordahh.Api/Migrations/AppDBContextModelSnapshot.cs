@@ -61,6 +61,9 @@ namespace Ordahh.Api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("INTEGER");
 
@@ -83,6 +86,7 @@ namespace Ordahh.Api.Migrations
                             Id = 1,
                             CategoryId = 1,
                             Description = "Beef patty, lettuce, tomato",
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Classic Burger",
                             Price = 8.99m
@@ -92,6 +96,7 @@ namespace Ordahh.Api.Migrations
                             Id = 2,
                             CategoryId = 1,
                             Description = "Classic with cheddar",
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Cheeseburger",
                             Price = 9.99m
@@ -101,6 +106,7 @@ namespace Ordahh.Api.Migrations
                             Id = 3,
                             CategoryId = 2,
                             Description = "Crispy and salted",
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Fries",
                             Price = 3.99m
@@ -109,6 +115,7 @@ namespace Ordahh.Api.Migrations
                         {
                             Id = 4,
                             CategoryId = 2,
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Onion Rings",
                             Price = 4.49m
@@ -117,6 +124,7 @@ namespace Ordahh.Api.Migrations
                         {
                             Id = 5,
                             CategoryId = 3,
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Cola",
                             Price = 2.49m
@@ -125,6 +133,7 @@ namespace Ordahh.Api.Migrations
                         {
                             Id = 6,
                             CategoryId = 3,
+                            IsArchived = false,
                             IsAvailable = true,
                             Name = "Lemonade",
                             Price = 2.99m

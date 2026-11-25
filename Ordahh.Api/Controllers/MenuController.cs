@@ -23,7 +23,9 @@ public class MenuController : ControllerBase
             {
                 c.Id,
                 c.Name,
-                Items = c.Items.Select(i => new
+                Items = c.Items
+                .Where(i => !i.IsArchived)
+                .Select(i => new
                 {
                     i.Id,
                     i.Name,
@@ -31,7 +33,9 @@ public class MenuController : ControllerBase
                     i.Price,
                     i.IsAvailable
                 })
+
             })
+            .Where(c => c.Items.Any())
             .ToListAsync();
 
         return Ok(menu);

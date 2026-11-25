@@ -147,18 +147,30 @@ public class OrdersController : ControllerBase
         if (missing.Count > 0)
             return BadRequest($"Menu items not found: {string.Join(", ", missing)}");
 
-        // 4. Reject items that are sold out
+        // 3.1 Reject items that are archived
+        var archived = menuItems
+            .Where(m => m.IsArchived)
+            .Select(m => m.Name)
+            .ToList();
+
+        if (archived.Count > 0)
+            return BadRequest($"These items are no longer on the menu: {string.Join(", ", archived)}");
+
+
+        // 3.2 Reject items that are unavailable
         var unavailable = menuItems.Where(m => !m.IsAvailable).Select(m => m.Name).ToList();
         if (unavailable.Count > 0)
             return BadRequest($"Currently unavailable: {string.Join(", ", unavailable)}");
 
-        // 5. Build the order from DATABASE prices
+
+        // 4. Build the order from DATABASE prices
         var order = new Order
         {
             CreatedAt = DateTime.UtcNow,
             Status = OrderStatus.Received
         };
 
+        // Add the lines to the order, using the database prices
         foreach (var line in lines)
         {
             var menuItem = menuItems.First(mi => mi.Id == line.MenuItemId);

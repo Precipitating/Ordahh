@@ -12,3 +12,6 @@ GET http://localhost:5276/api/orders/track/3f2b8c1e-0000-4000-8000-000000000000
 
 ### not a GUID
 GET http://localhost:5276/api/orders/track/abc
+
+
+GET http://localhost:5276/api/admin/menu
