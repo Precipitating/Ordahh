@@ -63,6 +63,42 @@ public class AdminMenuController : ControllerBase
         return Ok(ToResponse(item));
     }
 
+    [HttpPut("menu-items/{id}")]
+    public async Task<IActionResult> UpdateMenuItem(int id, MenuItemRequest request)
+    {
+        var item = await _db.MenuItems
+            .Include(m => m.Category)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
+        if (item == null)
+            return NotFound();
+
+        var name = request.Name.Trim();
+
+        var category = await _db.Categories.FindAsync(request.CategoryId);
+        if (category == null)
+            return BadRequest("That category does not exist.");
+
+        var duplicate = await _db.MenuItems.AnyAsync(m =>
+            m.Id != id &&
+            m.CategoryId == request.CategoryId &&
+            !m.IsArchived &&
+            m.Name.ToLower() == name.ToLower());
+
+        if (duplicate)
+            return Conflict($"'{name}' already exists in that category.");
+
+        item.Name = name;
+        item.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        item.Price = request.Price;
+        item.CategoryId = request.CategoryId;
+        item.Category = category;   // so the response shows the new category name
+
+        await _db.SaveChangesAsync();
+
+        return Ok(ToResponse(item));
+    }
+
     [HttpGet("menu")]
     public async Task<IActionResult> GetMenu()
     {

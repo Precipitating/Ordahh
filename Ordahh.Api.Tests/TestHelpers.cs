@@ -28,15 +28,40 @@ public static class TestHelpers
         return client;
     }
 
-    // each test creates its own menu items, so tests never depend on or change the seed data
-    public static async Task<int> AddMenuItemAsync(TestFactory factory, string name, decimal price, bool available = true)
+    // Adds a menu item to the database and returns its ID.
+    public static async Task<int> AddMenuItemAsync(
+        TestFactory factory, string name, decimal price,
+        bool available = true, bool archived = false, int categoryId = 1)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
-        var item = new MenuItem { Name = name, Price = price, IsAvailable = available, CategoryId = 1 };
+        var item = new MenuItem
+        {
+            Name = name,
+            Price = price,
+            IsAvailable = available,
+            IsArchived = archived,
+            CategoryId = categoryId
+        };
         db.MenuItems.Add(item);
         await db.SaveChangesAsync();
         return item.Id;
+    }
+
+    public static async Task<int> AddCategoryAsync(TestFactory factory, string name)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+        var category = new Category { Name = name };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        return category.Id;
+    }
+
+    public static Task<HttpResponseMessage> SendJsonAsync(HttpClient client, HttpMethod method, string url, object body)
+    {
+        var request = new HttpRequestMessage(method, url) { Content = JsonContent.Create(body) };
+        return client.SendAsync(request);
     }
 
     public static async Task SetPriceAsync(TestFactory factory, int menuItemId, decimal price)
