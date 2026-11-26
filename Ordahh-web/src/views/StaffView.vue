@@ -4,6 +4,8 @@ import * as signalR from '@microsoft/signalr'
 import { API_URL } from '../api'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import StaffNav from '../components/StaffNav.vue'
+
 const orders = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -196,6 +198,7 @@ async function changeStatus(order, newStatus) {
 
 <template>
     <main>
+        <StaffNav/>
         <div class="toolbar">
             <label>
                 <input type="checkbox" v-model="showClosed" />
