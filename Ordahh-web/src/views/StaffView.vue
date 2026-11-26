@@ -1,16 +1,18 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as signalR from '@microsoft/signalr'
-import { API_URL } from '../api'
+import { API_URL, readError } from '../api'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import StaffNav from '../components/StaffNav.vue'
+import { useApi } from '../composables/useApi'
 
 const orders = ref([])
 const loading = ref(true)
 const error = ref('')
 const auth = useAuthStore()
 const router = useRouter()
+const { authFetch } = useApi()
 const connection = new signalR.HubConnectionBuilder()
         .withUrl(`${API_URL}/hubs/orders`, {
             accessTokenFactory: () => auth.token
@@ -141,58 +143,48 @@ onUnmounted(() => {
 
 // fetch the list of orders from the server
 async function fetchSite() {
-        try {
-            const response = await fetch(`${API_URL}/api/orders`, {
-                headers: { 'Authorization': `Bearer ${auth.token}` }
-            })
-            if (response.status === 401) {
-                logout()
-            }
-            if (!response.ok) throw new Error(`Server returned ${response.status}`)
-            orders.value = await response.json()
-            error.value = ''
-        } catch (e) {
-            error.value = 'Could not load orders.'
-            console.error(e)
-        } finally {
-            loading.value = false
-        }
+    try {
+        const response = await authFetch('/api/orders')
+        if (!response.ok) throw new Error(`Server returned ${response.status}`)
+        orders.value = await response.json()
+        error.value = ''
+    } catch (e) {
+        // authFetch has already logged out and redirected on an expired session
+        if (e.message !== 'Session expired') error.value = 'Could not load orders.'
+        console.error(e)
+    } finally {
+        loading.value = false
+    }
 }
 
 async function changeStatus(order, newStatus) {
-        if (updatingId.value !== null) return
-        if (newStatus === 'Cancelled' && !confirm(`Cancel order #${order.id}?`)) return
+    if (updatingId.value !== null) return
+    if (newStatus === 'Cancelled' && !confirm(`Cancel order #${order.id}?`)) return
 
-        updatingId.value = order.id
-        statusError.value = ''
+    updatingId.value = order.id
+    statusError.value = ''
 
-        try {
-            const response = await fetch(`${API_URL}/api/orders/${order.id}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
-                body: JSON.stringify({ status: newStatus }),
-            })
+    try {
+        const response = await authFetch(`/api/orders/${order.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+        })
 
-            if (response.status === 401) {
-                logout()
-                return
-            }   
-
-            if (!response.ok) {
-                // a 409 arrives as plain text; a 404 has an empty body
-                statusError.value = (await response.text()) || 'Could not update the order.'
-                return
-            }
-
-            const updated = await response.json()
-            const index = orders.value.findIndex(o => o.id === updated.id)
-            if (index !== -1) orders.value[index] = updated
-        } catch (e) {
-            statusError.value = 'Could not reach the server.'
-            console.error(e)
-        } finally {
-            updatingId.value = null
+        if (!response.ok) {
+            statusError.value = await readError(response, 'Could not update the order.')
+            return
         }
+
+        const updated = await response.json()
+        const index = orders.value.findIndex(o => o.id === updated.id)
+        if (index !== -1) orders.value[index] = updated
+    } catch (e) {
+        if (e.message !== 'Session expired') statusError.value = 'Could not reach the server.'
+        console.error(e)
+    } finally {
+        updatingId.value = null
+    }
 }
 </script>
 

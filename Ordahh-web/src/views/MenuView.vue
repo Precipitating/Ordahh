@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useCartStore } from '../stores/cart'
 import MenuItem from '../components/MenuItem.vue'
 import { useRecentOrdersStore } from '../stores/recentOrders'
-import { API_URL } from '../api'
+import { API_URL, readError } from '../api'
 const cart = useCartStore()
 
 const menu = ref([])
@@ -76,19 +76,8 @@ async function placeOrder()
             body: JSON.stringify(reshapeList(cart.items)),
         })
 
-        if (!response.ok)
-        {
-            const contentType = response.headers.get('content-type') ?? ''
-            if (contentType.includes('json'))
-            {
-                // validation failures from [ApiController] arrive as JSON
-                const problem = await response.json()
-                orderError.value = Object.values(problem.errors).flat().join(' ') || problem.title
-            } else
-            {
-                // your own BadRequest("...") messages arrive as plain text
-                orderError.value = await response.text()
-            }
+        if (!response.ok) {
+            orderError.value = await readError(response, 'The order was rejected.')
             return
         }
 

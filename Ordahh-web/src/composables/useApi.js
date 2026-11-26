@@ -1,6 +1,6 @@
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { API_URL } from '../api'
+import { API_URL, SessionExpiredError } from '../api'
 
 export function useApi() {
     const auth = useAuthStore()
@@ -18,7 +18,7 @@ export function useApi() {
         if (response.status === 401) {
             auth.logout()
             router.push('/login')
-            throw new Error('Session expired')
+            throw new SessionExpiredError()
         }
         return response
     }

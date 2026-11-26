@@ -9,3 +9,10 @@ export async function readError(response, fallback = 'Something went wrong.') {
     }
     return (await response.text()) || fallback
 }
+
+export class SessionExpiredError extends Error {
+    constructor() {
+        super('Session expired')
+        this.name = 'SessionExpiredError'
+    }
+}
