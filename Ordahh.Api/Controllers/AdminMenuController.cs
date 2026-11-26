@@ -29,6 +29,39 @@ public class AdminMenuController : ControllerBase
         IsAvailable = m.IsAvailable,
         IsArchived = m.IsArchived
     };
+    [HttpPost("menu-items")]
+    public async Task<IActionResult> CreateMenuItem(MenuItemRequest request)
+    {
+        var name = request.Name.Trim();
+
+        var category = await _db.Categories.FindAsync(request.CategoryId);
+        if (category == null)
+            return BadRequest("That category does not exist.");
+
+        var duplicate = await _db.MenuItems.AnyAsync(m =>
+            m.CategoryId == request.CategoryId &&
+            !m.IsArchived &&
+            m.Name.ToLower() == name.ToLower());
+
+        if (duplicate)
+            return Conflict($"'{name}' already exists in that category.");
+
+        var item = new MenuItem
+        {
+            Name = name,
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+            Price = request.Price,
+            CategoryId = request.CategoryId,
+            IsAvailable = true,
+            IsArchived = false
+        };
+
+        _db.MenuItems.Add(item);
+        await _db.SaveChangesAsync();
+
+        item.Category = category;
+        return Ok(ToResponse(item));
+    }
 
     [HttpGet("menu")]
     public async Task<IActionResult> GetMenu()
