@@ -31,7 +31,7 @@ public class MenuController : ControllerBase
                     i.Name,
                     i.Description,
                     i.Price,
-                    i.IsAvailable
+                    IsAvailable = i.IsAvailable && (i.Stock == null || i.Stock > 0)
                 })
 
             })

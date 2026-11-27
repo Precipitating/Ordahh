@@ -156,12 +156,23 @@ public class OrdersController : ControllerBase
         if (archived.Count > 0)
             return BadRequest($"These items are no longer on the menu: {string.Join(", ", archived)}");
 
-
         // 3.2 Reject items that are unavailable
         var unavailable = menuItems.Where(m => !m.IsAvailable).Select(m => m.Name).ToList();
         if (unavailable.Count > 0)
             return BadRequest($"Currently unavailable: {string.Join(", ", unavailable)}");
 
+        // 3.3 Reject lines that ask for more than is left in stock
+        //     (a friendly message; the atomic update below is the real guard)
+        var shortLines = lines
+            .Select(l => new { Item = menuItems.First(m => m.Id == l.MenuItemId), l.Quantity })
+            .Where(x => x.Item.Stock != null && x.Item.Stock < x.Quantity)
+            .Select(x => x.Item.Stock == 0
+                ? $"{x.Item.Name} is sold out"
+                : $"{x.Item.Name} (only {x.Item.Stock} left)")
+            .ToList();
+
+        if (shortLines.Count > 0)
+            return BadRequest($"Not enough stock: {string.Join("; ", shortLines)}");
 
         // 4. Build the order from DATABASE prices
         var order = new Order
@@ -170,7 +181,6 @@ public class OrdersController : ControllerBase
             Status = OrderStatus.Received
         };
 
-        // Add the lines to the order, using the database prices
         foreach (var line in lines)
         {
             var menuItem = menuItems.First(mi => mi.Id == line.MenuItemId);
@@ -184,11 +194,31 @@ public class OrdersController : ControllerBase
 
         order.Total = order.Items.Sum(oi => oi.UnitPrice * oi.Quantity);
 
-        // 6. Save (order and lines go together in one transaction)
+        // 5. Take the stock and save the order in ONE transaction.
+        //    All reads happen above; the first statement inside the transaction is a write.
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
+        foreach (var line in lines)
+        {
+            var item = menuItems.First(m => m.Id == line.MenuItemId);
+            if (item.Stock == null) continue;   // untracked items never run out
+
+            var changed = await _db.MenuItems
+                .Where(m => m.Id == item.Id && m.Stock != null && m.Stock >= line.Quantity)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.Stock, m => m.Stock - line.Quantity));
+
+            if (changed == 0)
+            {
+                // someone else took the stock first; leaving without Commit rolls everything back
+                return Conflict($"Stock for {item.Name} changed while you were ordering. Please check your cart and try again.");
+            }
+        }
+
         _db.Orders.Add(order);
         await _db.SaveChangesAsync();
+        await tx.CommitAsync();
 
-        // 7. Build the response
+        // 6. Build the response
         var names = menuItems.ToDictionary(m => m.Id, m => m.Name);
         var response = new OrderResponse
         {
@@ -206,7 +236,16 @@ public class OrdersController : ControllerBase
             }).ToList()
         };
 
-        await _hub.Clients.All.SendAsync("OrderCreated", response);
+        // 7. Tell staff, only AFTER the commit. The order is saved, so a failed push must not become a 500.
+        try
+        {
+            await _hub.Clients.All.SendAsync("OrderCreated", response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Push failed for order {OrderId}", order.Id);
+        }
+
         return Ok(response);
     }
     [HttpGet]

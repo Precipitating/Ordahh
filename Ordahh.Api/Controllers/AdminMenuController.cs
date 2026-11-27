@@ -27,7 +27,8 @@ public class AdminMenuController : ControllerBase
         CategoryId = m.CategoryId,
         CategoryName = m.Category?.Name ?? "",
         IsAvailable = m.IsAvailable,
-        IsArchived = m.IsArchived
+        IsArchived = m.IsArchived,
+        Stock = m.Stock
     };
     [HttpPost("menu-items")]
     public async Task<IActionResult> CreateMenuItem(MenuItemRequest request)
@@ -53,7 +54,8 @@ public class AdminMenuController : ControllerBase
             Price = request.Price,
             CategoryId = request.CategoryId,
             IsAvailable = true,
-            IsArchived = false
+            IsArchived = false,
+            Stock = request.Stock
         };
 
         _db.MenuItems.Add(item);
@@ -93,7 +95,24 @@ public class AdminMenuController : ControllerBase
         item.Price = request.Price;
         item.CategoryId = request.CategoryId;
         item.Category = category;   // so the response shows the new category name
+        item.Stock = request.Stock;
 
+        await _db.SaveChangesAsync();
+
+        return Ok(ToResponse(item));
+    }
+
+    [HttpPatch("menu-items/{id}/stock")]
+    public async Task<IActionResult> SetStock(int id, MenuItemStockRequest request)
+    {
+        var item = await _db.MenuItems
+            .Include(m => m.Category)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
+        if (item == null)
+            return NotFound();
+
+        item.Stock = request.Stock;
         await _db.SaveChangesAsync();
 
         return Ok(ToResponse(item));

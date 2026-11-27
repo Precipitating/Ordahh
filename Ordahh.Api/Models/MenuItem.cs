@@ -7,6 +7,9 @@ public class MenuItem
     public string? Description { get; set; }
     public decimal Price { get; set; }
 
+
+    public int? Stock { get; set; }
+
     // In stock and available for ordering
     public bool IsAvailable { get; set; } = true;
 

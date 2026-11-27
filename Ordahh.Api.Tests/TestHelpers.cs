@@ -31,7 +31,7 @@ public static class TestHelpers
     // Adds a menu item to the database and returns its ID.
     public static async Task<int> AddMenuItemAsync(
         TestFactory factory, string name, decimal price,
-        bool available = true, bool archived = false, int categoryId = 1)
+        bool available = true, bool archived = false, int? stock = null,  int categoryId = 1)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
@@ -41,7 +41,8 @@ public static class TestHelpers
             Price = price,
             IsAvailable = available,
             IsArchived = archived,
-            CategoryId = categoryId
+            CategoryId = categoryId,
+            Stock = stock
         };
         db.MenuItems.Add(item);
         await db.SaveChangesAsync();
@@ -56,6 +57,13 @@ public static class TestHelpers
         db.Categories.Add(category);
         await db.SaveChangesAsync();
         return category.Id;
+    }
+
+    public static async Task<int?> GetStockAsync(TestFactory factory, int menuItemId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+        return (await db.MenuItems.SingleAsync(m => m.Id == menuItemId)).Stock;
     }
 
     public static Task<HttpResponseMessage> SendJsonAsync(HttpClient client, HttpMethod method, string url, object body)

@@ -15,4 +15,7 @@ public class MenuItemRequest
 
     [Range(1, int.MaxValue, ErrorMessage = "Choose a category.")]
     public int CategoryId { get; set; }
+
+    [Range(0, 100000, ErrorMessage = "Stock must be between 0 and 100000, or left blank.")]
+    public int? Stock { get; set; }
 }

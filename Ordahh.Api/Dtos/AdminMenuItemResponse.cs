@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ordahh.Api.Dtos;
 
 
@@ -13,4 +15,5 @@ public class AdminMenuItemResponse
     public int CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public bool IsAvailable { get; set; }
+    public int? Stock { get; set; }
 }
