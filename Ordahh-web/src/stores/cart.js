@@ -15,16 +15,18 @@ export const useCartStore = defineStore('cart', () => {
     )
 
     function add(menuItem) {
+        const max = menuItem.maxPerOrder ?? MAX_PER_ITEM
         const existing = items.value.find(i => i.id === menuItem.id)
         if (existing) {
-            if (existing.quantity >= MAX_PER_ITEM) { return }
+            if (existing.quantity >= existing.max) return
             existing.quantity++
         } else {
             items.value.push({
                 id: menuItem.id,
                 name: menuItem.name,
                 price: menuItem.price,
-                quantity: 1
+                quantity: 1,
+                max,
             })
         }
     }
@@ -34,12 +36,9 @@ export const useCartStore = defineStore('cart', () => {
             items.value = items.value.filter(i => i.id !== id)
             return
         }
-
-        if (quantity > MAX_PER_ITEM) {
-            return
-        }
         const item = items.value.find(i => i.id === id)
-        if (item) item.quantity = quantity
+        if (!item || quantity > item.max) return
+        item.quantity = quantity
     }
 
     function clear() {

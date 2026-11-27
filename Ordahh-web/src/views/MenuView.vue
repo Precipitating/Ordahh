@@ -134,10 +134,11 @@ async function placeOrder()
             <ul v-else>
                 <li v-for="line in cart.items" :key="line.id" class="cart-line">
                     <span>{{ line.name }}</span>
+                    <span v-if="line.lowStock" class="low-stock">Low stock</span>
                     <div class="qty">
                         <button @click="cart.setQuantity(line.id, line.quantity - 1)">-</button>
                         <span>{{ line.quantity }}</span>
-                        <button :disabled="line.quantity >= cart.MAX_PER_ITEM" @click="cart.setQuantity(line.id, line.quantity + 1)">+</button>
+                        <button :disabled="line.quantity >= line.max" @click="cart.setQuantity(line.id, line.quantity + 1)">+</button>
                     </div>
                     <span class="price">${{ (line.price * line.quantity).toFixed(2) }}</span>
                 </li>
@@ -254,6 +255,16 @@ async function placeOrder()
         height: 1px;
         overflow: hidden;
         clip: rect(0 0 0 0);
+    }
+    .low-stock {
+        display: inline-block;
+        margin-left: 0.4rem;
+        padding: 0.1rem 0.5rem;
+        border-radius: 999px;
+        background: #ffe0b2;
+        color: #e65100;
+        font-size: 0.75rem;
+        font-weight: 600;
     }
 
     .recent {

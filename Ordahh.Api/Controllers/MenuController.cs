@@ -31,7 +31,9 @@ public class MenuController : ControllerBase
                     i.Name,
                     i.Description,
                     i.Price,
-                    IsAvailable = i.IsAvailable && (i.Stock == null || i.Stock > 0)
+                    IsAvailable = i.IsAvailable && (i.Stock == null || i.Stock > 0),
+                    MaxPerOrder = (i.Stock == null || i.Stock >= 10) ? 10 : i.Stock!.Value,
+                    LowStock = i.Stock != null && i.Stock > 0 && i.Stock <= 5
                 })
 
             })

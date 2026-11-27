@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useApi } from '../composables/useApi'
 import { readError } from '../api'
 import StaffNav from '../components/StaffNav.vue'
@@ -10,8 +10,12 @@ const items = ref([])
 const loading = ref(true)
 const error = ref('')
 const actionError = ref('')
+
 const busyId = ref(null)
 const showArchived = ref(false)
+// per-row "set stock" inputs, keyed by item id
+const stockDraft = reactive({})   
+
 
 // form state: editingId === null means "adding"
 const formOpen = ref(false)
@@ -21,149 +25,171 @@ const formError = ref('')
 const saving = ref(false)
 
 function emptyForm() {
-      return { name: '', description: '', price: null, categoryId: null }
+    return { name: '', description: '', price: null, categoryId: null, stock: '' }
 }
+
 
 // hide archived rows unless asked; keep them grouped by category, then name
 const visibleItems = computed(() => {
-      const list = showArchived.value
-        ? items.value
-        : items.value.filter(i => !i.isArchived)
+        const list = showArchived.value
+            ? items.value
+            : items.value.filter(i => !i.isArchived)
 
-      return [...list].sort((a, b) =>
-        a.categoryName.localeCompare(b.categoryName) || a.name.localeCompare(b.name)
-      )
+        return [...list].sort((a, b) =>
+            a.categoryName.localeCompare(b.categoryName) || a.name.localeCompare(b.name)
+        )
 })
 
 // the dropdown options come from the categories the items already carry
 const categories = computed(() => {
-      const seen = new Map()
-      for (const i of items.value) seen.set(i.categoryId, i.categoryName)
-      return [...seen].map(([id, name]) => ({ id, name }))
+        const seen = new Map()
+        for (const i of items.value) seen.set(i.categoryId, i.categoryName)
+        return [...seen].map(([id, name]) => ({ id, name }))
 })
 
 async function load() {
-      try {
-        const response = await authFetch('/api/admin/menu')
-        if (!response.ok) throw new Error(`Server returned ${response.status}`)
-        items.value = await response.json()
-        error.value = ''
-      } catch (e) {
-        if (e.message !== 'Session expired') error.value = 'Could not load the menu.'
-        console.error(e)
-      } finally {
-        loading.value = false
-      }
+        try {
+            const response = await authFetch('/api/admin/menu')
+            if (!response.ok) throw new Error(`Server returned ${response.status}`)
+            items.value = await response.json()
+            error.value = ''
+        } catch (e) {
+            if (e.message !== 'Session expired') error.value = 'Could not load the menu.'
+            console.error(e)
+        } finally {
+            loading.value = false
+        }
 }
 
 onMounted(load)
 
 function replaceItem(updated) {
-      const index = items.value.findIndex(i => i.id === updated.id)
-      if (index !== -1) items.value[index] = updated
+        const index = items.value.findIndex(i => i.id === updated.id)
+        if (index !== -1) items.value[index] = updated
 }
 
 // ---- quick toggles ----
 
 async function patch(item, part, body) {
-      if (busyId.value !== null) return
+        if (busyId.value !== null) return
 
-      busyId.value = item.id
-      actionError.value = ''
+        busyId.value = item.id
+        actionError.value = ''
 
-      try {
-        const response = await authFetch(`/api/admin/menu-items/${item.id}/${part}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        })
+        try {
+            const response = await authFetch(`/api/admin/menu-items/${item.id}/${part}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            })
 
-        if (!response.ok) {
-          actionError.value = await readError(response, 'Could not update the item.')
-          return
+            if (!response.ok) {
+                actionError.value = await readError(response, 'Could not update the item.')
+                return
+            }
+            replaceItem(await response.json())
+        } catch (e) {
+            if (e.message !== 'Session expired') actionError.value = 'Could not reach the server.'
+            console.error(e)
+        } finally {
+            busyId.value = null
         }
-        replaceItem(await response.json())
-      } catch (e) {
-        if (e.message !== 'Session expired') actionError.value = 'Could not reach the server.'
-        console.error(e)
-      } finally {
-        busyId.value = null
-      }
 }
 
 function toggleAvailability(item) {
-      return patch(item, 'availability', { isAvailable: !item.isAvailable })
+        return patch(item, 'availability', { isAvailable: !item.isAvailable })
 }
 
 function toggleArchive(item) {
-      if (!item.isArchived && !confirm(`Archive "${item.name}"? Customers will no longer see it.`)) return
-      return patch(item, 'archive', { isArchived: !item.isArchived })
+        if (!item.isArchived && !confirm(`Archive "${item.name}"? Customers will no longer see it.`)) return
+        return patch(item, 'archive', { isArchived: !item.isArchived })
+}
+
+// ---- stock ----
+
+async function applyStock(item) {
+        const value = stockDraft[item.id]
+        if (value === '' || value === undefined || value === null || value < 0) return
+
+        delete stockDraft[item.id]
+        await patch(item, 'stock', { stock: Number(value) })
+}
+
+function stopTracking(item) {
+        return patch(item, 'stock', { stock: null })
 }
 
 // ---- add / edit form ----
 
 function startAdd() {
-      editingId.value = null
-      form.value = emptyForm()
-      formError.value = ''
-      formOpen.value = true
+        editingId.value = null
+        form.value = emptyForm()
+        formError.value = ''
+        formOpen.value = true
 }
 
 function startEdit(item) {
-      editingId.value = item.id
-      form.value = {
-        name: item.name,
-        description: item.description ?? '',
-        price: item.price,
-        categoryId: item.categoryId,
-      }
-      formError.value = ''
-      formOpen.value = true
+        editingId.value = item.id
+        form.value = {
+            name: item.name,
+            description: item.description ?? '',
+            price: item.price,
+            categoryId: item.categoryId,
+            stock: item.stock ?? '',   // blank means "not tracked"
+        }
+        formError.value = ''
+        formOpen.value = true
 }
 
 function closeForm() {
-      formOpen.value = false
-      editingId.value = null
-      formError.value = ''
+        formOpen.value = false
+        editingId.value = null
+        formError.value = ''
 }
 
 async function submit() {
-      if (saving.value) return
+        if (saving.value) return
 
-      saving.value = true
-      formError.value = ''
-      const editing = editingId.value !== null
+        saving.value = true
+        formError.value = ''
+        const editing = editingId.value !== null
 
-      try {
-        const response = await authFetch(
-          editing ? `/api/admin/menu-items/${editingId.value}` : '/api/admin/menu-items',
-          {
-            method: editing ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: form.value.name,
-              description: form.value.description,
-              price: form.value.price,
-              categoryId: form.value.categoryId,
-            }),
-          }
-        )
+        // an empty number input gives '' under v-model.number; the API wants null for "not tracked"
+        const stock = form.value.stock === '' || form.value.stock === null
+            ? null
+            : Number(form.value.stock)
 
-        if (!response.ok) {
-          formError.value = await readError(response, 'Could not save the item.')
-          return
+        try {
+            const response = await authFetch(
+                editing ? `/api/admin/menu-items/${editingId.value}` : '/api/admin/menu-items',
+                {
+                    method: editing ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: form.value.name,
+                        description: form.value.description,
+                        price: form.value.price,
+                        categoryId: form.value.categoryId,
+                        stock,
+                    }),
+                }
+            )
+
+            if (!response.ok) {
+                formError.value = await readError(response, 'Could not save the item.')
+                return
+            }
+
+            const saved = await response.json()
+            if (editing) replaceItem(saved)
+            else items.value.push(saved)
+            closeForm()
+        } catch (e) {
+            if (e.message !== 'Session expired') formError.value = 'Could not reach the server.'
+            console.error(e)
+        } finally {
+            saving.value = false
         }
-
-        const saved = await response.json()
-        if (editing) replaceItem(saved)
-        else items.value.push(saved)
-        closeForm()
-      } catch (e) {
-        if (e.message !== 'Session expired') formError.value = 'Could not reach the server.'
-        console.error(e)
-      } finally {
-        saving.value = false
-      }
 }
 </script>
 
@@ -201,6 +227,11 @@ async function submit() {
             </label>
 
             <label>
+                Stock (leave blank to not track)
+                <input v-model.number="form.stock" type="number" min="0" />
+            </label>
+
+            <label>
                 Category
                 <select v-model="form.categoryId" required>
                     <option :value="null" disabled>Choose a category</option>
@@ -229,6 +260,7 @@ async function submit() {
                         <th>Name</th>
                         <th>Category</th>
                         <th>Price</th>
+                        <th>Stock</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -241,7 +273,20 @@ async function submit() {
                         </td>
                         <td>{{ item.categoryName }}</td>
                         <td>${{ item.price.toFixed(2) }}</td>
+                        <td>
+                            <span v-if="item.stock === null" class="muted">Not tracked</span>
+                            <span v-else :class="{ zero: item.stock === 0, low: item.stock > 0 && item.stock <= 5 }">
+                                {{ item.stock }}
+                            </span>
+                        </td>
                         <td class="row-actions">
+                            <template v-if="!item.isArchived">
+                                <button v-if="item.stock !== null"
+                                        :disabled="busyId !== null"
+                                        @click="stopTracking(item)">
+                                    Untrack
+                                </button>
+                            </template>
                             <button @click="startEdit(item)">Edit</button>
                             <button v-if="!item.isArchived"
                                     :disabled="busyId !== null"
@@ -261,7 +306,7 @@ async function submit() {
 
 <style scoped>
     main {
-        max-width: 900px;
+        max-width: 1100px;
         margin: 0 auto;
         padding: 1rem;
     }
@@ -311,6 +356,7 @@ async function submit() {
     .row-actions {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 0.5rem;
     }
 
@@ -371,5 +417,26 @@ async function submit() {
     .badge-soldout {
         background: #ffe0b2;
         color: #e65100;
+    }
+
+    .muted {
+        color: #888;
+    }
+
+    .zero {
+        color: #b00020;
+        font-weight: 700;
+    }
+
+    .low {
+        color: #e65100;
+        font-weight: 700;
+    }
+
+    .stock-input {
+        width: 90px;
+        padding: 0.4rem;
+        border: 1px solid #bbb;
+        border-radius: 6px;
     }
 </style>

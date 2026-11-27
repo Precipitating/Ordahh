@@ -264,4 +264,19 @@ public class StockTests : IClassFixture<TestFactory>
 
         Assert.Equal(2, await TestHelpers.GetStockAsync(_factory, id));
     }
+
+    [Fact]
+    public async Task CustomerMenu_CapsMaxPerOrderAtStock_AndFlagsLowStock()
+    {
+        var customer = _factory.CreateClient();
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Few"), 4.00m, stock: 3);
+
+        var menu = await customer.GetFromJsonAsync<JsonElement>("/api/menu");
+        var item = menu.EnumerateArray()
+            .SelectMany(c => c.GetProperty("items").EnumerateArray())
+            .Single(i => i.GetProperty("id").GetInt32() == id);
+
+        Assert.Equal(3, item.GetProperty("maxPerOrder").GetInt32());
+        Assert.True(item.GetProperty("lowStock").GetBoolean());
+    }
 }

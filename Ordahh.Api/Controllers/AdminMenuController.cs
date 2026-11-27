@@ -134,7 +134,8 @@ public class AdminMenuController : ControllerBase
                 CategoryId = m.CategoryId,
                 CategoryName = m.Category!.Name,
                 IsAvailable = m.IsAvailable,
-                IsArchived = m.IsArchived
+                IsArchived = m.IsArchived,
+                Stock = m.Stock
             })
             .ToListAsync();
 
