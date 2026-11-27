@@ -69,8 +69,8 @@ public class OrdersController : ControllerBase
         }).ToList()
     };
 
-    [HttpPatch("{id}/status")]
     [Authorize(Roles = "Staff")]
+    [HttpPatch("{id}/status")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateOrderStatusRequest request)
     {
         if (!Enum.IsDefined(request.Status))
@@ -87,26 +87,55 @@ public class OrdersController : ControllerBase
         if (!AllowedMoves[order.Status].Contains(request.Status))
             return Conflict($"Cannot move an order from {order.Status} to {request.Status}.");
 
-        order.Status = request.Status;
-        await _db.SaveChangesAsync();
+        if (request.Status == OrderStatus.Cancelled)
+        {
+            // all reads are done; the first statement in the transaction is a write
+            await using var tx = await _db.Database.BeginTransactionAsync();
+
+            // 1. Claim the cancellation. Only one request can change Received -> Cancelled.
+            var claimed = await _db.Orders
+                .Where(o => o.Id == id && o.Status == OrderStatus.Received)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, OrderStatus.Cancelled));
+
+            if (claimed == 0)
+                return Conflict("This order was already changed by someone else.");   // rolls back
+
+            // 2. Give the quantities back, only for items whose stock is tracked
+            foreach (var line in order.Items)
+            {
+                await _db.MenuItems
+                    .Where(m => m.Id == line.MenuItemId && m.Stock != null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(m => m.Stock, m => m.Stock + line.Quantity));
+            }
+
+            await tx.CommitAsync();
+
+            // ExecuteUpdateAsync bypasses change tracking, so refresh our copy of the order
+            await _db.Entry(order).ReloadAsync();
+        }
+        else
+        {
+            order.Status = request.Status;
+            await _db.SaveChangesAsync();
+        }
 
         var response = ToResponse(order);
+
+        // the change is saved, so a failed push must not turn this into a 500
         try
         {
-            // 1. staff: every staff board gets the full order
             await _hub.Clients.All.SendAsync("StatusUpdated", response);
 
-            // 2. customer: only the tracking page(s) that joined this order's group
             await _trackingHub.Clients
                 .Group(TrackingHub.GroupName(order.TrackingCode))
                 .SendAsync("OrderStatusChanged", ToTracking(order));
         }
         catch (Exception e)
         {
-            _logger.LogError(e, $"Push failed for order {order.Id}");
+            _logger.LogError(e, "Push failed for order {OrderId}", order.Id);
         }
 
-        return Ok(ToResponse(order));
+        return Ok(response);
     }
     [HttpGet("track/{code:guid}")]
     public async Task<IActionResult> Track(Guid code)

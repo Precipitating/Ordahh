@@ -192,4 +192,76 @@ public class StockTests : IClassFixture<TestFactory>
         Assert.All(responses.Where(r => r.StatusCode != HttpStatusCode.OK),
             r => Assert.True(r.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict));
     }
+
+    [Fact]
+    public async Task CancellingAnOrder_ReturnsItsQuantitiesToStock()
+    {
+        var customer = _factory.CreateClient();
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Return"), 4.00m, stock: 5);
+        var orderId = await TestHelpers.CreateOrderAsync(customer, id, 3);
+        Assert.Equal(2, await TestHelpers.GetStockAsync(_factory, id));
+
+        var response = await TestHelpers.PatchStatusAsync(staff, orderId, "Cancelled");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(5, await TestHelpers.GetStockAsync(_factory, id));
+    }
+
+    [Fact]
+    public async Task CancellingTwice_OnlyReturnsStockOnce()
+    {
+        var customer = _factory.CreateClient();
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Once"), 4.00m, stock: 5);
+        var orderId = await TestHelpers.CreateOrderAsync(customer, id, 3);
+
+        var first = await TestHelpers.PatchStatusAsync(staff, orderId, "Cancelled");
+        var second = await TestHelpers.PatchStatusAsync(staff, orderId, "Cancelled");
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Equal(5, await TestHelpers.GetStockAsync(_factory, id));
+    }
+
+    [Fact]
+    public async Task ParallelCancels_ReturnStockExactlyOnce()
+    {
+        var customer = _factory.CreateClient();
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Race"), 4.00m, stock: 5);
+        var orderId = await TestHelpers.CreateOrderAsync(customer, id, 3);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10)
+            .Select(_ => TestHelpers.PatchStatusAsync(staff, orderId, "Cancelled")));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(5, await TestHelpers.GetStockAsync(_factory, id));
+    }
+
+    [Fact]
+    public async Task CancellingAnUntrackedItemsOrder_DoesNotGiveItAStockCount()
+    {
+        var customer = _factory.CreateClient();
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Free"), 4.00m, stock: null);
+        var orderId = await TestHelpers.CreateOrderAsync(customer, id, 3);
+
+        await TestHelpers.PatchStatusAsync(staff, orderId, "Cancelled");
+
+        Assert.Null(await TestHelpers.GetStockAsync(_factory, id));
+    }
+
+    [Fact]
+    public async Task MovingToPreparing_DoesNotTouchStock()
+    {
+        var customer = _factory.CreateClient();
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Keep"), 4.00m, stock: 5);
+        var orderId = await TestHelpers.CreateOrderAsync(customer, id, 3);
+
+        await TestHelpers.PatchStatusAsync(staff, orderId, "Preparing");
+
+        Assert.Equal(2, await TestHelpers.GetStockAsync(_factory, id));
+    }
 }
