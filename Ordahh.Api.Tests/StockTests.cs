@@ -4,7 +4,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
-
+using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.Http.Connections;
 public class StockTests : IClassFixture<TestFactory>
 {
     private readonly TestFactory _factory;
@@ -278,5 +279,30 @@ public class StockTests : IClassFixture<TestFactory>
 
         Assert.Equal(3, item.GetProperty("maxPerOrder").GetInt32());
         Assert.True(item.GetProperty("lowStock").GetBoolean());
+    }
+
+    [Fact]
+    public async Task MenuHub_PushesMenuChanged_WhenStaffChangeStock()
+    {
+        var staff = await TestHelpers.CreateStaffClientAsync(_factory);
+        var id = await TestHelpers.AddMenuItemAsync(_factory, Unique("Live"), 4.00m, stock: 5);
+
+        var received = new TaskCompletionSource<bool>();
+        var connection = new HubConnectionBuilder()
+            .WithUrl(new Uri(_factory.Server.BaseAddress, "/hubs/menu"), options =>
+            {
+                options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
+                options.Transports = HttpTransportType.LongPolling;
+            })
+            .Build();
+        connection.On("MenuChanged", () => received.TrySetResult(true));
+        await connection.StartAsync();
+
+        await TestHelpers.SendJsonAsync(staff, HttpMethod.Patch, $"/api/admin/menu-items/{id}/stock", new { stock = 3 });
+
+        var finished = await Task.WhenAny(received.Task, Task.Delay(5000));
+        await connection.DisposeAsync();
+
+        Assert.Same(received.Task, finished);
     }
 }

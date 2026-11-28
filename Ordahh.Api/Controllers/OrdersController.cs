@@ -1,11 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Dtos;
-using Ordahh.Api.Models;
-using Microsoft.AspNetCore.SignalR;
 using Ordahh.Api.Hubs;
-using Microsoft.AspNetCore.Authorization;
+using Ordahh.Api.Models;
+using Ordahh.Api.Services;
 
 namespace Ordahh.Api.Controllers;
 
@@ -18,17 +19,23 @@ public class OrdersController : ControllerBase
     private readonly IHubContext<OrdersHub> _hub;
     private readonly IHubContext<TrackingHub> _trackingHub;
     private readonly ILogger<OrdersController> _logger;
+    private readonly MenuNotifier _menu;
 
     public OrdersController(
         AppDBContext db,
         IHubContext<OrdersHub> hub,
         IHubContext<TrackingHub> trackingHub,
-        ILogger<OrdersController> logger)
+        ILogger<OrdersController> logger,
+        MenuNotifier menu
+        )
+
+
     {
         _db = db;
         _hub = hub;
         _trackingHub = trackingHub;
         _logger = logger;
+        _menu = menu;
     }
 
     private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedMoves = new()
@@ -112,6 +119,8 @@ public class OrdersController : ControllerBase
 
             // ExecuteUpdateAsync bypasses change tracking, so refresh our copy of the order
             await _db.Entry(order).ReloadAsync();
+
+            await _menu.NotifyAsync();
         }
         else
         {
@@ -246,6 +255,7 @@ public class OrdersController : ControllerBase
         _db.Orders.Add(order);
         await _db.SaveChangesAsync();
         await tx.CommitAsync();
+        await _menu.NotifyAsync();
 
         // 6. Build the response
         var names = menuItems.ToDictionary(m => m.Id, m => m.Name);

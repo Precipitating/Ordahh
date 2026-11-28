@@ -153,4 +153,14 @@ public class AuthTests : IClassFixture<TestFactory>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MenuHub_AllowsTheHandshakeWithoutLogin()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.PostAsync("/hubs/menu/negotiate?negotiateVersion=1", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

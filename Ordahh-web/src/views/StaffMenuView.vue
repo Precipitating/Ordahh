@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import * as signalR from '@microsoft/signalr'
 import { useApi } from '../composables/useApi'
-import { readError } from '../api'
+import { readError, API_URL } from '../api'
 import StaffNav from '../components/StaffNav.vue'
 
 const { authFetch } = useApi()
@@ -23,6 +24,14 @@ const editingId = ref(null)
 const form = ref(emptyForm())
 const formError = ref('')
 const saving = ref(false)
+
+// live updates
+const menuConnection = new signalR.HubConnectionBuilder()
+    .withUrl(`${API_URL}/hubs/menu`)
+    .withAutomaticReconnect()
+    .build()
+
+let refreshTimer
 
 function emptyForm() {
     return { name: '', description: '', price: null, categoryId: null, stock: '' }
@@ -61,8 +70,28 @@ async function load() {
         }
 }
 
-onMounted(load)
 
+function scheduleRefresh() {
+    clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(load, 500)
+}
+onMounted(async () => {
+    menuConnection.on('MenuChanged', scheduleRefresh)
+    menuConnection.onreconnected(load)
+
+    try {
+        await menuConnection.start()
+    } catch (e) {
+        console.error('Live menu unavailable', e)
+    }
+
+    await load()
+})
+
+onUnmounted(() => {
+    clearTimeout(refreshTimer)
+    menuConnection.stop()
+})
 function replaceItem(updated) {
         const index = items.value.findIndex(i => i.id === updated.id)
         if (index !== -1) items.value[index] = updated

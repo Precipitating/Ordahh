@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Ordahh.Api.Data;
 using Ordahh.Api.Dtos;
 using Ordahh.Api.Models;
+using Ordahh.Api.Services;
 
 namespace Ordahh.Api.Controllers;
 
@@ -13,10 +14,11 @@ namespace Ordahh.Api.Controllers;
 public class AdminMenuController : ControllerBase
 {
     private readonly AppDBContext _db;
-
-    public AdminMenuController(AppDBContext db)
+    private readonly MenuNotifier _menu;
+    public AdminMenuController(AppDBContext db, MenuNotifier menu)
     {
         _db = db;
+        _menu = menu;
     }
     private static AdminMenuItemResponse ToResponse(MenuItem m) => new AdminMenuItemResponse
     {
@@ -52,16 +54,17 @@ public class AdminMenuController : ControllerBase
             Name = name,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             Price = request.Price,
+            Category = category,
             CategoryId = request.CategoryId,
             IsAvailable = true,
             IsArchived = false,
             Stock = request.Stock
+
         };
 
         _db.MenuItems.Add(item);
         await _db.SaveChangesAsync();
-
-        item.Category = category;
+        await _menu.NotifyAsync();
         return Ok(ToResponse(item));
     }
 
@@ -98,6 +101,7 @@ public class AdminMenuController : ControllerBase
         item.Stock = request.Stock;
 
         await _db.SaveChangesAsync();
+        await _menu.NotifyAsync();
 
         return Ok(ToResponse(item));
     }
@@ -114,7 +118,7 @@ public class AdminMenuController : ControllerBase
 
         item.Stock = request.Stock;
         await _db.SaveChangesAsync();
-
+        await _menu.NotifyAsync();
         return Ok(ToResponse(item));
     }
 
@@ -155,7 +159,7 @@ public class AdminMenuController : ControllerBase
 
         item.IsArchived = request.IsArchived;
         await _db.SaveChangesAsync();
-
+        await _menu.NotifyAsync();
         return Ok(ToResponse(item));
     }
     [HttpPatch("menu-items/{id}/availability")]
@@ -172,7 +176,7 @@ public class AdminMenuController : ControllerBase
 
         item.IsAvailable = request.IsAvailable;
         await _db.SaveChangesAsync();
-
+        await _menu.NotifyAsync();
         return Ok(ToResponse(item));
     }
 }

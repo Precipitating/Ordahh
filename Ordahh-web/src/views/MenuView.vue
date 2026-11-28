@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import * as signalR from '@microsoft/signalr'
 import { useCartStore } from '../stores/cart'
 import MenuItem from '../components/MenuItem.vue'
 import { useRecentOrdersStore } from '../stores/recentOrders'
@@ -16,17 +17,57 @@ const search = ref('')
 const selectedCategory = ref(null)
 const confirmation = ref(null)
 
-onMounted(async () => {
-      try {
+async function loadMenu() {
+    try {
         const response = await fetch(`${API_URL}/api/menu`)
         if (!response.ok) throw new Error(`Server returned ${response.status}`)
         menu.value = await response.json()
-      } catch (e) {
-        error.value = 'Could not load the menu.'
+        error.value = ''
+        cart.syncWithMenu(menu.value)
+    } catch (e) {
+        // on a background refresh, keep showing the old menu instead of an error
+        if (menu.value.length === 0) error.value = 'Could not load the menu.'
         console.error(e)
-      } finally {
+    } finally {
         loading.value = false
-      }
+    }
+}
+
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl(`${API_URL}/hubs/menu`)
+    .withAutomaticReconnect()
+    .build()
+
+// several changes in a burst (a rush of orders) should cause one refetch
+let refreshTimer
+function scheduleRefresh() {
+    clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(loadMenu, 500)
+}
+
+// if the selected category disappears (all its items archived), go back to "All"
+watch(menu, (m) => {
+    if (selectedCategory.value !== null && !m.some(c => c.id === selectedCategory.value)) {
+        selectedCategory.value = null
+    }
+})
+
+onMounted(async () => {
+    connection.on('MenuChanged', scheduleRefresh)
+    connection.onreconnected(loadMenu)   // events sent while disconnected were missed
+
+    // connect first, then load, so a change in between can't be missed
+    try {
+        await connection.start()
+    } catch (e) {
+        console.error('Live menu unavailable', e)
+    }
+    await loadMenu()
+})
+
+onUnmounted(() => {
+    clearTimeout(refreshTimer)
+    connection.stop()
 })
 
 
@@ -134,7 +175,9 @@ async function placeOrder()
             <ul v-else>
                 <li v-for="line in cart.items" :key="line.id" class="cart-line">
                     <span>{{ line.name }}</span>
-                    <span v-if="line.lowStock" class="low-stock">Low stock</span>
+                    <span v-if="line.unavailable" class="error">No longer available. Please remove it.</span>
+                    <span v-if="line.lowStock && !line.unavailable" class="low-stock">Low stock</span>
+
                     <div class="qty">
                         <button @click="cart.setQuantity(line.id, line.quantity - 1)">-</button>
                         <span>{{ line.quantity }}</span>
@@ -146,7 +189,8 @@ async function placeOrder()
 
             <p class="total">Total: <strong>${{ cart.total.toFixed(2) }}</strong></p>
             <button v-if="cart.items.length" @click="cart.clear()">Clear cart</button>
-            <button v-if="cart.items.length" :disabled="submitting" @click="placeOrder">
+
+            <button v-if="cart.items.length" :disabled="submitting || cart.items.some(l => l.unavailable) " @click="placeOrder">
                 {{ submitting ? 'Placing order...' : 'Place order' }}
             </button>
 
@@ -265,6 +309,12 @@ async function placeOrder()
         color: #e65100;
         font-size: 0.75rem;
         font-weight: 600;
+    }
+    .cart-line .error {
+        display: block;
+        color: #dc2626;
+        font-size: 0.85rem;
+        margin-top: 4px;
     }
 
     .recent {

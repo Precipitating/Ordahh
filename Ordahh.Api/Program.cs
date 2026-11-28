@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Ordahh.Api.Data;
 using Ordahh.Api.Hubs;
 using Ordahh.Api.Models;
+using Ordahh.Api.Services;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -100,7 +101,7 @@ builder.Services
         };
     });
 
-
+builder.Services.AddSingleton<MenuNotifier>();
 
 builder.Services.AddAuthorization();
 
@@ -146,6 +147,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<OrdersHub>("/hubs/orders");
 app.MapHub<TrackingHub>("/hubs/tracking");
+app.MapHub<MenuHub>("/hubs/menu");
 
 app.Run();
 

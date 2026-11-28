@@ -27,7 +27,26 @@ export const useCartStore = defineStore('cart', () => {
                 price: menuItem.price,
                 quantity: 1,
                 max,
+                unavailable : false
             })
+        }
+    }
+    // Sync cart items with the menu to update availability and max quantity
+    function syncWithMenu(menu) {
+        const byId = new Map(menu.flatMap(c => c.items).map(i => [i.id, i]))
+
+        for (const line of items.value) {
+            const item = byId.get(line.id)
+
+            if (!item || !item.isAvailable) {
+                line.unavailable = true
+                continue
+            }
+
+            line.unavailable = false
+            line.lowStock = item.lowStock
+            line.max = item.maxPerOrder ?? MAX_PER_ITEM
+            if (line.quantity > line.max) line.quantity = line.max
         }
     }
 
@@ -45,5 +64,5 @@ export const useCartStore = defineStore('cart', () => {
         items.value = []
     }
 
-    return { items, totalItems, total, add, setQuantity, clear, MAX_PER_ITEM }
+    return { items, totalItems, total, add, setQuantity, clear, MAX_PER_ITEM, syncWithMenu }
 })
